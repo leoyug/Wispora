@@ -1,4 +1,4 @@
-import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDeleteBinLine, RiEditLine, RiExternalLinkLine, RiFileCopyLine, RiFunctionLine, RiListCheck, RiListCheck2, RiPriceTag3Line, RiSearchLine, RiSparkling2Line, RiTextSnippet } from "@remixicon/react";
+import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDeleteBinLine, RiEditLine, RiExternalLinkLine, RiFileCopyLine, RiFunctionLine, RiListCheck, RiListCheck2, RiListUnordered, RiPriceTag3Line, RiSearchLine, RiSparkling2Line, RiTextSnippet } from "@remixicon/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FloatingAddMenu } from "@/src/components/inspiration/FloatingAddMenu";
@@ -29,13 +29,14 @@ import { TagManagerDialog } from "./TagManagerDialog";
 import { LibrarySkeleton } from "./LibrarySkeleton";
 import { t, tf } from "@/src/i18n/ui";
 
-type LayoutMode = InspirationLayout;
+type LayoutMode = InspirationLayout | "compact-list";
 type SortOrder = "newest" | "oldest";
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
 const layoutOptions = [
   { value: "cards", label: "详情卡片", icon: <RiFunctionLine size={15} aria-hidden="true" /> },
   { value: "compact", label: "紧凑卡片", icon: <RiListCheck2 size={15} aria-hidden="true" /> },
   { value: "list", label: "详情列表", icon: <RiListCheck size={15} aria-hidden="true" /> },
+  { value: "compact-list", label: "紧凑列表", icon: <RiListUnordered size={15} aria-hidden="true" /> },
 ] as const;
 const sortOptions = [
   { value: "newest", label: "最新" },
@@ -52,7 +53,7 @@ function readInitialState() {
     query: params.get("q") ?? "",
     tags: params.getAll("tag"),
     sort: params.get("sort") === "oldest" ? "oldest" as const : "newest" as const,
-    layout: params.get("layout") === "compact" ? "compact" as const : params.get("layout") === "list" ? "list" as const : "cards" as const,
+    layout: params.get("layout") === "compact-list" ? "compact-list" as const : params.get("layout") === "compact" ? "compact" as const : params.get("layout") === "list" ? "list" as const : "cards" as const,
     item: params.get("item"),
     view: params.get("view"),
   };
@@ -355,7 +356,7 @@ export function LibraryPage() {
           {liveItems === undefined ? <span className="sr-only">{t("正在打开本地收藏库")}</span> : null}
           <div className="t-skel-skeleton is-pulsing"><LibrarySkeleton /></div>
           <div className="t-skel-content">
-            {liveItems !== undefined ? visibleItems.length ? layoutMode === "list" ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tag) ? current : [...current, tag]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tag) ? current : [...current, tag]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : items.length === 0 ? <div className="empty-state"><div className="empty-mark"><RiPriceTag3Line size={22} /></div><h2>{t("建立你的第一个收藏项")}</h2><p>{t("添加网站、文章或关注源，刷新页面后它仍会留在这里。")}</p><Button variant="primary" onPress={() => setImportKind("website")}>{t("添加网站")}</Button></div> : <div className="empty-state"><div className="empty-mark"><RiSearchLine size={22} /></div><h2>{t("没有匹配的内容")}</h2><p>{t("调整筛选条件，或换一个搜索关键词后再试。")}</p><Button variant="secondary" onPress={clearConditions}>{t("清除筛选")}</Button></div> : null}
+            {liveItems !== undefined ? visibleItems.length ? (layoutMode === "list" || layoutMode === "compact-list") ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} variant={layoutMode === "compact-list" ? "compact" : "detail"} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tag) ? current : [...current, tag]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tag) ? current : [...current, tag]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : items.length === 0 ? <div className="empty-state"><div className="empty-mark"><RiPriceTag3Line size={22} /></div><h2>{t("建立你的第一个收藏项")}</h2><p>{t("添加网站、文章或关注源，刷新页面后它仍会留在这里。")}</p><Button variant="primary" onPress={() => setImportKind("website")}>{t("添加网站")}</Button></div> : <div className="empty-state"><div className="empty-mark"><RiSearchLine size={22} /></div><h2>{t("没有匹配的内容")}</h2><p>{t("调整筛选条件，或换一个搜索关键词后再试。")}</p><Button variant="secondary" onPress={clearConditions}>{t("清除筛选")}</Button></div> : null}
           </div>
         </div>
       </div>

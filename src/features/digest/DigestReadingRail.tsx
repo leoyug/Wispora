@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { RiArrowDownSLine } from "@remixicon/react";
 import { Button } from "@/src/components/ui/Button";
-import { Tooltip } from "@/src/components/ui/Tooltip";
-import { t, tf } from "@/src/i18n/ui";
+import { t } from "@/src/i18n/ui";
 import { digestEntryAnchor, jumpToDigestAnchor, type DigestReadingSection } from "./readingNavigation";
 
 interface DigestReadingRailProps {
@@ -12,24 +13,34 @@ interface DigestReadingRailProps {
 }
 
 export function DigestReadingRail({ sections, activeSectionId, activeAnchorId, visible, preview = false }: DigestReadingRailProps) {
-  const entryCount = sections.reduce((count, section) => count + section.entries.length, 0);
-  const markerCount = sections.length + entryCount;
-  const naturalHeight = markerCount * 12 + 8;
-  const rows = markerCount ? `repeat(${markerCount}, minmax(0, 1fr))` : undefined;
+  const [expanded, setExpanded] = useState(() => preview || !window.matchMedia("(max-width: 1000px)").matches);
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    const current = panel?.querySelector('[aria-current="location"]');
+    if (!expanded || !visible || !panel || !current) return;
+    const panelBounds = panel.getBoundingClientRect();
+    const currentBounds = current.getBoundingClientRect();
+    if (currentBounds.top < panelBounds.top + 16) panel.scrollTop += currentBounds.top - panelBounds.top - 16;
+    else if (currentBounds.bottom > panelBounds.bottom - 16) panel.scrollTop += currentBounds.bottom - panelBounds.bottom + 16;
+  }, [activeAnchorId, expanded, visible]);
+  const navigate = (event: MouseEvent<HTMLAnchorElement>, id: string) => {
+    event.preventDefault();
+    if (!preview) jumpToDigestAnchor(id);
+  };
 
-  return <nav className={`digest-reading-rail${preview ? " digest-reading-rail-preview" : ""}`} style={{ height: preview ? naturalHeight : `min(${naturalHeight}px, calc(100dvh - 64px))`, gridTemplateRows: rows }} aria-label={t("阅读位置与目录")} hidden={!visible}>
-    {sections.map((section) => <div className="digest-reading-rail-group" key={section.id}>
-      <Button variant="ghost" className={`digest-reading-marker digest-reading-section${activeSectionId === section.id ? " is-current-section" : ""}`} aria-current={activeAnchorId === section.id ? "location" : undefined} onPress={() => jumpToDigestAnchor(section.id)}>
-        <span className="digest-reading-tick" aria-hidden="true" /><span title={t(section.label)}>{t(section.label)}</span>
-      </Button>
-      {section.entries.map((entry) => {
-        const anchorId = digestEntryAnchor(section.id, entry.id);
-        return <Tooltip key={entry.id} placement="right" content={entry.title}>
-          <Button variant="ghost" className="digest-reading-marker digest-reading-entry" aria-label={tf("跳转到 {title}", { title: entry.title })} aria-current={activeAnchorId === anchorId ? "location" : undefined} onPress={() => jumpToDigestAnchor(anchorId)}>
-            <span className="digest-reading-tick" aria-hidden="true" />
-          </Button>
-        </Tooltip>;
-      })}
-    </div>)}
-  </nav>;
+  return <aside className={`digest-reading-rail${preview ? " digest-reading-rail-preview" : ""}`} aria-label={t("本期目录")}>
+    <Button variant="ghost" className="digest-reading-toggle" aria-expanded={expanded} aria-controls={preview ? "digest-preview-contents" : "digest-reader-contents"} aria-label={expanded ? t("收起目录") : t("展开目录")} onPress={() => setExpanded((value) => !value)}>
+      {t("目录")}<RiArrowDownSLine size={18} aria-hidden="true" />
+    </Button>
+    <nav ref={panelRef} id={preview ? "digest-preview-contents" : "digest-reader-contents"} className="digest-reading-panel" aria-label={t("本期目录")} hidden={!expanded}>
+      <ul>{sections.map((section) => <li className="digest-reading-group" key={section.id}>
+        <a href={`#${section.id}`} className={`digest-reading-section${visible && activeSectionId === section.id ? " is-current-section" : ""}`} aria-current={visible && activeAnchorId === section.id ? "location" : undefined} onClick={(event) => navigate(event, section.id)}>{t(section.label)}</a>
+        <ol>{section.entries.map((entry) => {
+          const anchorId = digestEntryAnchor(section.id, entry.id);
+          return <li key={entry.id}><a href={`#${anchorId}`} className="digest-reading-entry" aria-current={visible && activeAnchorId === anchorId ? "location" : undefined} onClick={(event) => navigate(event, anchorId)} title={entry.title}>{entry.title}</a></li>;
+        })}</ol>
+      </li>)}</ul>
+    </nav>
+  </aside>;
 }

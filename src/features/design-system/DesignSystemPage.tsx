@@ -1,4 +1,4 @@
-import { RiAddLine, RiArrowLeftLine, RiArrowUpDownLine, RiCheckLine, RiErrorWarningLine, RiFunctionLine, RiListCheck, RiListCheck2, RiPriceTag3Line, RiSearchLine, RiSettings3Line } from "@remixicon/react";
+import { RiAddLine, RiArrowLeftLine, RiArrowUpDownLine, RiCheckLine, RiErrorWarningLine, RiFunctionLine, RiListCheck, RiListCheck2, RiListUnordered, RiPriceTag3Line, RiSearchLine, RiSettings3Line } from "@remixicon/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { FloatingAddMenu } from "@/src/components/inspiration/FloatingAddMenu";
 import { DigestEditionCard } from "@/src/components/inspiration/DigestEditionCard";
@@ -68,6 +68,7 @@ const layoutOptions = [
   { value: "grid", label: "详情卡片", icon: <RiFunctionLine size={15} aria-hidden="true" /> },
   { value: "compact", label: "紧凑卡片", icon: <RiListCheck2 size={15} aria-hidden="true" /> },
   { value: "list", label: "详情列表", icon: <RiListCheck size={15} aria-hidden="true" /> },
+  { value: "compact-list", label: "紧凑列表", icon: <RiListUnordered size={15} aria-hidden="true" /> },
 ] as const;
 
 function PreviewSection({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -184,6 +185,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           <div className="card-layout-specimens">
             <div><span>卡片排列</span><div className="card-preview-grid">{inspirationItems.slice(0, 3).map((item) => <InspirationCard key={item.id} item={item} layout="cards" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
             <div><span>紧凑卡片</span><div className="compact-preview-grid">{inspirationItems.slice(0, 3).map((item) => <InspirationCard key={item.id} item={item} layout="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
+            <div><span>紧凑列表</span><div className="inspiration-list">{inspirationItems.slice(0, 3).map((item) => <InspirationListItem key={item.id} item={item} variant="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
             <div><span>列表排列</span><div className="inspiration-list">{inspirationItems.slice(0, 3).map((item) => <InspirationListItem key={item.id} item={item} onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
           </div>
         </PreviewSection>
