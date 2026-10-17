@@ -26,7 +26,7 @@ export function BackupDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       const url = URL.createObjectURL(file);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `wanderland-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `wispora-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.append(link);
       link.click();
       link.remove();

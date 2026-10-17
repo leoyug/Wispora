@@ -13,6 +13,7 @@ import {
 import { SavedViewReorderList } from "./SavedViewReorderList";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { Button } from "@/src/components/ui/Button";
+import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { Tooltip } from "@/src/components/ui/Tooltip";
 import { t, tf } from "@/src/i18n/ui";
 
@@ -203,7 +204,7 @@ export function AppShell({ items, activeScope, activeSavedView, savedViews, onSc
         ? activeItems.filter((item) => !isSavedItemProcessed(item)).length
         : activeItems.filter((item) => item.kind === scope).length;
   const renderScope = (scope: LibraryScope, label: string, icon: ReactNode) => <SidebarNavItem icon={icon} label={label} count={countForScope(scope)} isActive={activeScope === scope && !activeSavedView} onPress={() => onScopeChange(scope)} tooltip={mode === "library" && isCompactSidebar ? label : undefined} />;
-  const brandButton = <Button type="button" variant="ghost" className="brand" aria-label={t("返回首页")} onPress={handleBrandPress}><img className="brand-wordmark" src="/assets/wordmark.svg" alt="" /><img className="brand-mark" src="/assets/logo.svg" alt="" aria-hidden="true" /></Button>;
+  const brandButton = <Button type="button" variant="ghost" className="brand" aria-label={`Wispora · ${t("返回首页")}`} onPress={handleBrandPress}><BrandLogo className="brand-wordmark" decorative /><BrandLogo variant="mark" className="brand-mark" decorative /></Button>;
   const settingsButton = <Button variant="ghost" className="nav-item sidebar-tool" aria-label={t("打开设置")} onPress={onOpenSettings}><RiSettingsLine size={17} aria-hidden="true" /><span>{t("设置")}</span></Button>;
   const savedViewToggle = <Button type="button" variant="ghost" className="saved-view-toggle t-acc-head" aria-label={areSavedViewsExpanded ? t("收起快捷视图") : t("展开快捷视图")} aria-expanded={areSavedViewsExpanded} onPress={() => setAreSavedViewsExpanded((isExpanded) => !isExpanded)}><span className="t-acc-chevron"><RiArrowDownSLine size={18} /></span></Button>;
 

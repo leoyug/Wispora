@@ -6,6 +6,7 @@ import { buildDigest } from "@/src/domain/digest";
 import { DigestReadingRail } from "@/src/features/digest/DigestReadingRail";
 import { digestEntryAnchor } from "@/src/features/digest/readingNavigation";
 import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
+import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
 import { SavedViewReorderList } from "@/src/components/layout/SavedViewReorderList";
 import { SidebarIcon } from "@/src/components/layout/SidebarIcon";
@@ -119,20 +120,29 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="design-system-page">
       <header className="design-system-header">
-        <Button variant="ghost" onPress={onBack}><RiArrowLeftLine size={17} />返回 WEBLOOM</Button>
-        <div><span>DEV ONLY</span><h1>WEBLOOM · 设计系统</h1><p>用于验证 token、组件变体与页面组合的一致性。</p></div>
+        <Button variant="ghost" onPress={onBack}><RiArrowLeftLine size={17} />返回 Wispora</Button>
+        <div><span>DEV ONLY</span><h1>Wispora · 设计系统</h1><p>用于验证 token、组件变体与页面组合的一致性。</p></div>
       </header>
 
       <div className="design-system-content">
+        <PreviewSection title="品牌" description="Wispora 原始 Figma 导出：组合标志、图标和字标保持原始比例与 Display-P3 颜色，字标已转为轮廓。">
+          <div className="brand-specimens">
+            <BrandLogo className="brand-specimen-lockup" />
+            <BrandLogo variant="mark" className="brand-specimen-mark" />
+            <BrandLogo variant="wordmark" className="brand-specimen-wordmark" />
+            <div className="brand-icon-sizes">{([16, 32, 48, 128] as const).map((size) => <figure key={size}><img src={`/icon/${size}.png`} width={size} height={size} alt={`Wispora ${size}px`} /><figcaption>{size}px</figcaption></figure>)}</div>
+          </div>
+        </PreviewSection>
+
         <PreviewSection title="颜色" description="色块使用 Display-P3 渲染；数值以便于设计核对的大写十六进制参考值展示。">
           <div className="color-grid">{colors.map(({ name, token, value }) => <div className="color-swatch" key={name}><i style={{ background: `var(${token})` }} /><span>{name}</span><code>{isDark ? (darkColorValues[token] ?? value) : value}</code></div>)}</div>
         </PreviewSection>
 
         <PreviewSection title="字体" description="界面、标题与标签按字符混排 Geist Mono 和系统中文字体；描述使用系统字体，特殊标题保持宋体角色。">
           <div className="type-specimens">
-            <div><span>Brand / Condensed Bold</span><p className="display-type">WEBLOOM</p></div>
+            <div><span>Brand / Dinish Condensed Bold · Figma SVG</span><BrandLogo variant="wordmark" className="display-wordmark" /></div>
             <div><span>Headline / PingFang SC</span><p className="headline-type">发现看到的美好</p></div>
-            <div><span>Interface / Unicode-range CJK + Geist Mono</span><p>搜索设计、创意或关键词……「WEBLOOM UI」2026，快速找回真正有用的内容。</p></div>
+            <div><span>Interface / Unicode-range CJK + Geist Mono</span><p>搜索设计、创意或关键词……「Wispora UI」2026，快速找回真正有用的内容。</p></div>
             <div><span>Content title &amp; tag / Unicode-range CJK + Geist Mono</span><p className="content-title-type">Design Systems 设计系统 · #React组件库</p></div>
             <div><span>Description / System Sans</span><p className="description-type">A readable description 使用系统字体呈现，适合连续阅读。</p></div>
             <div><span>Metadata / Geist Mono</span><code>collectui.com · Last updated: 3 hours ago</code></div>

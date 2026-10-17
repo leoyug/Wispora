@@ -3,7 +3,7 @@ import Dexie from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SavedItem } from "@/src/domain/inspiration";
 import type { PageCapture } from "@/src/capture/types";
-import { WanderlandDatabase } from "./database";
+import { WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
 
 const databaseNames: string[] = [];
@@ -11,7 +11,7 @@ const databaseNames: string[] = [];
 function createDatabase() {
   const name = `wanderland-test-${crypto.randomUUID()}`;
   databaseNames.push(name);
-  return new WanderlandDatabase(name);
+  return new WisporaDatabase(name);
 }
 
 function createCapture(overrides: Partial<PageCapture> = {}): PageCapture {
@@ -132,7 +132,7 @@ describe("InspirationRepository", () => {
     const view = await repository.createSavedView({ name: "本周阅读", scope: "article", tags: [] });
     database.close();
 
-    const reopened = new WanderlandDatabase(name);
+    const reopened = new WisporaDatabase(name);
     const reopenedRepository = new InspirationRepository(reopened);
     expect((await reopenedRepository.listLibraryItems())[0]?.isFavorite).toBe(true);
     expect((await reopenedRepository.listLibrarySavedViews()).map((candidate) => candidate.id)).toContain(view.id);
@@ -178,7 +178,7 @@ describe("InspirationRepository", () => {
     await legacy.table("savedItems").add(legacyItem);
     legacy.close();
 
-    const upgraded = new WanderlandDatabase(name);
+    const upgraded = new WisporaDatabase(name);
     await upgraded.open();
     const item = await upgraded.savedItems.get("legacy-item") as SavedItem;
     expect(item.title).toBe("Legacy");

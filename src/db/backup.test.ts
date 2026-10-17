@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import Dexie from "dexie";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WanderlandDatabase } from "./database";
+import { WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
 import { createBackup, parseBackup, restoreBackup } from "./backup";
 
@@ -11,12 +11,28 @@ const names: string[] = [];
 function makeDatabase() {
   const name = `wanderland-backup-test-${crypto.randomUUID()}`;
   names.push(name);
-  return new WanderlandDatabase(name);
+  return new WisporaDatabase(name);
 }
 
 afterEach(async () => { await Promise.all(names.splice(0).map((name) => Dexie.delete(name))); });
 
 describe("local backup", () => {
+  it.each(["wispora-backup", "wanderland-backup"] as const)("restores %s files into the same library", async (format) => {
+    const source = makeDatabase();
+    const repository = new InspirationRepository(source);
+    await repository.createSavedItem({ kind: "website", url: "https://example.com/brand", title: "Keep my collection" });
+    const exported = await createBackup(source);
+    expect(exported.format).toBe("wispora-backup");
+    const target = makeDatabase();
+    try {
+      const outcome = await restoreBackup(parseBackup({ ...exported, format }), target);
+      expect(outcome.added).toBe(1);
+      expect((await target.savedItems.toArray())[0]?.title).toBe("Keep my collection");
+    } finally {
+      source.close(); target.close();
+    }
+  });
+
   it("round-trips items, cover blobs, snapshots and tags without overwriting existing items", async () => {
     const source = makeDatabase();
     const repository = new InspirationRepository(source);

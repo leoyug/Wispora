@@ -7,7 +7,7 @@ import {
 } from "react-aria-components";
 import { cn } from "@/src/lib/cn";
 
-// Intent UI modal anatomy, adapted to Wanderland's existing class-based tokens.
+// Intent UI modal anatomy, adapted to Wispora's existing class-based tokens.
 // https://intentui.com/docs/components/overlays/modal
 export function ModalOverlay(props: ComponentProps<typeof AriaModalOverlay>) {
   const { className, ...rest } = props;

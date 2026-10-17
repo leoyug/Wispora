@@ -1,4 +1,4 @@
-# 个人灵感库：技术栈方案
+# Wispora：技术栈方案
 
 Date: 2026-09-05
 
@@ -60,7 +60,7 @@ Intent UI 当前 registry 是共享 UI 组件的首选结构来源。组件通�
 
 1. 先复用 `src/components/ui/`、布局组件和领域组件中已有实现。
 2. 缺少组件时查询 Intent UI 当前 registry；存在对应项则复制其源码和组合结构。
-3. 使用 Wanderland 的 Display-P3 语义 token、圆角、字号和状态样式完成视觉适配，同时保留 Intent UI 的 slot、受控 API、键盘行为和可访问性语义。
+3. 使用 Wispora 的 Display-P3 语义 token、圆角、字号和状态样式完成视觉适配，同时保留 Intent UI 的 slot、受控 API、键盘行为和可访问性语义。
 4. Intent UI 示例中的 Heroicons 统一替换为 `@remixicon/react`；侧栏仍使用 Figma 导出的品牌 SVG。
 5. 只有 Intent UI 没有对应能力，或其通用实现无法满足已记录的扩展运行约束时，才允许新增专用组件，并在文档中记录原因。
 

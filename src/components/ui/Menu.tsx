@@ -7,7 +7,7 @@ import {
 } from "react-aria-components";
 import { cn } from "@/src/lib/cn";
 
-// Intent UI menu anatomy, adapted to Wanderland's semantic CSS and Remix icons.
+// Intent UI menu anatomy, adapted to Wispora's semantic CSS and Remix icons.
 // https://intentui.com/docs/components/collections/menu
 export const Menu = AriaMenuTrigger;
 

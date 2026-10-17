@@ -26,7 +26,7 @@
 .digest-empty p { color: var(--color-muted); font-family: var(--font-description); font-size: 15px; line-height: 1.8; }
 .digest-reader { min-height: 100dvh; padding: 0 clamp(20px, 4vw, 64px) 80px; }
 .digest-reader-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(1280px, 100%); min-height: 88px; margin: 0 auto; }
-.digest-reader-top > span { color: var(--color-muted); font-family: var(--font-brand); font-weight: 600; font-size: 18px; }
+.digest-reader-brand { width: auto; height: 26px; }
 .digest-reader-top .button { margin-left: -14px; }
 .digest-reader-layout { display: grid; grid-template-columns: minmax(0, 820px) minmax(260px, 320px); grid-template-areas: "header toc" "article toc"; grid-template-rows: auto 1fr; align-items: start; justify-content: center; gap: 0 clamp(40px, 5vw, 80px); width: min(1280px, 100%); margin: 12px auto 0; }
 .digest-reader-header { grid-area: header; min-width: 0; }
@@ -96,7 +96,7 @@
 @media (max-width: 650px) {
   .digest-reader { padding: 0 20px 48px; }
   .digest-reader-top { min-height: 72px; }
-  .digest-reader-top > span { display: none; }
+  .digest-reader-brand { display: none; }
   .digest-reader-layout { margin-top: 20px; }
   .digest-reader-header h1 { font-size: 34px; }
   .digest-reader-meta { gap: 6px 10px; margin-top: 20px; padding-bottom: 22px; font-size: 11px; }

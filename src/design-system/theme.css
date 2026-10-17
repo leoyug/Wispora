@@ -1,5 +1,5 @@
 /* Dark palette: Beam's #121212 ground / #181818 surface hierarchy,
-   translated into Webloom's existing semantic tokens and orange identity. */
+   translated into Wispora's existing semantic tokens and orange identity. */
 html[data-theme="dark"] {
   color-scheme: dark;
   --color-canvas: #121212;

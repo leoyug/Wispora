@@ -6,7 +6,7 @@ import {
 import { useState } from "react";
 import { cn } from "@/src/lib/cn";
 
-// Adapted from Intent UI's registry component for Wanderland's semantic tokens.
+// Adapted from Intent UI's registry component for Wispora's semantic tokens.
 // https://intentui.com/docs/components/controls/switch
 export function SwitchField({ className, ...props }: SwitchFieldProps) {
   return <SwitchFieldPrimitive data-slot="control" className={cn("switch-field", className)} {...props} />;

@@ -184,7 +184,7 @@ export default defineBackground(() => {
     inspirationRepository.initialize(),
     inspirationRepository.recoverInterruptedCaptureTasks(),
     inspirationRepository.recoverInterruptedAiTasks(),
-  ]).then(() => processAiQueue()).catch((error) => console.error("Wanderland 初始化失败", error));
+  ]).then(() => processAiQueue()).catch((error) => console.error("Wispora 初始化失败", error));
 
   const captureLanguagePorts = new Set<Browser.runtime.Port>();
   let languageRevision = 0;
@@ -278,7 +278,7 @@ export default defineBackground(() => {
     try {
       await browser.scripting.executeScript({ target: { tabId: tab.id }, files: ["/capture-overlay.js"] });
     } catch (error) {
-      console.warn("Wanderland 收藏浮层无法在当前页面打开", error);
+      console.warn("Wispora 收藏浮层无法在当前页面打开", error);
       await browser.tabs.create({ url: browser.runtime.getURL("/dashboard.html") });
     }
   });

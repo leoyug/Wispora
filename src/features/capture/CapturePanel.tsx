@@ -7,6 +7,7 @@ import {
 } from "@remixicon/react";
 import { useEffect, useState } from "react";
 import { Field } from "@/src/components/ui/Field";
+import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { TagInput } from "@/src/components/ui/TagInput";
 import type { CaptureResponse, ExtensionRequest } from "@/src/capture/types";
 import type { SavedItemKind, Tag } from "@/src/domain/inspiration";
@@ -107,10 +108,12 @@ export function CapturePanel({ page, onClose }: CapturePanelProps) {
       : t("页面基本信息已保存，快照可能不完整。");
 
   return (
-    <section className={`capture-panel${state === "success" ? " is-success" : ""}`} role="dialog" aria-modal="false" aria-label={t("收藏当前页面")}>
+    <section className={`capture-panel${state === "success" ? " is-success" : ""}`} role="dialog" aria-modal="false" aria-label={t("收藏当前页面")} onKeyDown={(event) => {
+      if (event.key === "Escape" && !event.nativeEvent.isComposing) onClose();
+    }}>
       <header className="capture-header">
         <div className="capture-brand">
-          <img src={browser.runtime.getURL("/assets/wordmark.svg")} alt="WEBLOOM" />
+          <BrandLogo assetBaseUrl={browser.runtime.getURL("/")} />
         </div>
         <div className="capture-header-actions">
           <button type="button" className="capture-library-link" onClick={() => void openDashboard()}>{t("打开收藏库")}</button>

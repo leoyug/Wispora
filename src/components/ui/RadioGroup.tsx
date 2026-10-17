@@ -18,7 +18,7 @@ interface RadioGroupProps<T extends string> {
   renderOption?: (option: RadioOption<T>) => ReactNode;
 }
 
-// Intent UI radio-group anatomy, adapted to Wanderland's semantic CSS.
+// Intent UI radio-group anatomy, adapted to Wispora's semantic CSS.
 // https://intentui.com/docs/components/forms/radio-group
 export function RadioGroup<T extends string>({ label, value, options, onChange, className, orientation = "vertical", renderOption }: RadioGroupProps<T>) {
   return (

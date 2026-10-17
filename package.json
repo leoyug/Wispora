@@ -1,5 +1,13 @@
 {
-  "name": "personal-inspiration-library",
+  "name": "wispora",
+  "description": "Wispora 是面向设计与开发工作的本地优先灵感库浏览器扩展，用于收藏、整理并重新发现网站、文章与关注源。",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leoyug/Wispora.git"
+  },
+  "bugs": {
+    "url": "https://github.com/leoyug/Wispora/issues"
+  },
   "version": "0.7.2",
   "private": true,
   "type": "module",

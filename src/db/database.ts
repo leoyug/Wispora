@@ -3,9 +3,10 @@ import type { PersistentTask, SavedItem, SavedView, Snapshot, Tag } from "@/src/
 
 import type { ContentDigest } from "@/src/domain/digest";
 
+// Keep the original storage identity so a brand update opens the existing library.
 export const DATABASE_NAME = "wanderland";
 
-export class WanderlandDatabase extends Dexie {
+export class WisporaDatabase extends Dexie {
   digests!: EntityTable<ContentDigest, "id">;
   savedItems!: EntityTable<SavedItem, "id">;
   snapshots!: EntityTable<Snapshot, "id">;
@@ -116,4 +117,4 @@ export class WanderlandDatabase extends Dexie {
   }
 }
 
-export const db = new WanderlandDatabase();
+export const db = new WisporaDatabase();

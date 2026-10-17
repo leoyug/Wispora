@@ -14,7 +14,7 @@ import type {
   UpdateSavedItemInput,
 } from "@/src/domain/inspiration";
 import { resolveDescription } from "@/src/domain/inspiration";
-import { db, type WanderlandDatabase } from "./database";
+import { db, type WisporaDatabase } from "./database";
 
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
 const systemViewId = "read-later";
@@ -66,7 +66,7 @@ export interface DemoSeedItem {
 }
 
 export class InspirationRepository {
-  constructor(private readonly database: WanderlandDatabase = db) {}
+  constructor(private readonly database: WisporaDatabase = db) {}
 
   async initialize() {
     const existing = await this.database.savedViews.get(systemViewId);

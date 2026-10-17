@@ -4,6 +4,7 @@ import { RiArrowLeftLine, RiArrowRightLine, RiArrowRightUpLine } from "@remixico
 import { CoverArt } from "@/src/components/inspiration/CoverArt";
 import { SiteIcon } from "@/src/components/inspiration/SiteIcon";
 import { Badge } from "@/src/components/ui/Badge";
+import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { digestRepository } from "@/src/db/digestRepository";
 import { digestRangeLabel, safeDigestUrl, type DigestEntry, type ContentDigest } from "@/src/domain/digest";
 import { t, tf } from "@/src/i18n/ui";
@@ -46,14 +47,14 @@ export function DigestReaderPage({ id, from }: { id: string; from?: string }) {
   const newer = index > 0 ? editions?.[index - 1] : undefined;
   const older = index >= 0 ? editions?.[index + 1] : undefined;
   return <main className="digest-reader">
-    <nav className="digest-reader-top" aria-label={t("简报导航")}><a className="button button-ghost" href={returnUrl}><RiArrowLeftLine size={16} aria-hidden="true" />{from === "weekly" || from === "daily" ? t("返回往期") : t("返回内容简报")}</a><span>WEBLOOM</span></nav>
+    <nav className="digest-reader-top" aria-label={t("简报导航")}><a className="button button-ghost" href={returnUrl}><RiArrowLeftLine size={16} aria-hidden="true" />{from === "weekly" || from === "daily" ? t("返回往期") : t("返回内容简报")}</a><BrandLogo className="digest-reader-brand" /></nav>
     {digest === undefined ? <div className="digest-empty" role="status">{t("正在读取简报…")}</div> : digest === null ? <div className="digest-empty"><h1>{t("这份简报不存在")}</h1><p>{t("返回往期，选择其他简报继续阅读。")}</p></div> : <>
       <div className="digest-reader-layout">
         <header className="digest-reader-header"><h1 id="digest-reader-title" ref={titleRef} tabIndex={-1}>{digest.title}</h1><div className="digest-reader-meta"><span>{t("作者")} Leo</span><span>{digestRangeLabel(digest)}</span><span>{digest.kind === "weekly" ? t("一周简报") : t("今日总结")}</span></div><p>{digest.introduction}</p></header>
         {sections.length ? <DigestReadingRail sections={sections} activeSectionId={readingPosition.sectionId} activeAnchorId={readingPosition.anchorId} visible={readingPosition.visible} /> : null}
         <article className="digest-reader-body" aria-labelledby="digest-reader-title">
         {sections.map((section) => <section className="digest-section" key={section.id} aria-labelledby={section.id}><div className="digest-section-heading"><h2 id={section.id} tabIndex={-1}>{t(section.label)}</h2><span>{tf("{count} 条", { count: section.entries.length })}</span></div>{section.id === "retrospective" ? <p className="digest-section-note">{t("从过往收藏中挑出几条，换个时间，再看一次。")}</p> : null}<div>{section.entries.map((entry, itemIndex) => <DigestItem key={entry.id} entry={entry} anchorId={digestEntryAnchor(section.id, entry.id)} showImage={itemIndex === 0 || (section.id === "websites" && itemIndex === 3)} />)}</div></section>)}
-        <footer className="digest-reader-footer"><p>{t("收藏是起点，重新发现也是。")}</p><span>Leo · WEBLOOM</span></footer>
+        <footer className="digest-reader-footer"><p>{t("收藏是起点，重新发现也是。")}</p><span>Leo · Wispora</span></footer>
         <nav className="digest-reader-editions" aria-label={t("其他简报")}>{older ? <a href={`#digest/${older.id}?from=${digest.kind}`}><RiArrowLeftLine size={17} aria-hidden="true" /><span>{t("上一期")}<strong>{older.title}</strong></span></a> : <span />}{newer ? <a href={`#digest/${newer.id}?from=${digest.kind}`}><span>{t("下一期")}<strong>{newer.title}</strong></span><RiArrowRightLine size={17} aria-hidden="true" /></a> : <a href={`#settings/digest/${digest.kind}`}>{t("返回往期")}<RiArrowRightLine size={17} aria-hidden="true" /></a>}</nav>
         </article>
       </div>

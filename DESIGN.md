@@ -1,6 +1,6 @@
 ---
-name: Wanderland V0.2
-description: Wanderland V0.2 紧凑暖灰收藏工作台设计系统。
+name: Wispora V0.2
+description: Wispora V0.2 紧凑暖灰收藏工作台设计系统。
 colorSpace: display-p3
 colors:
   canvas: "color(display-p3 0.95479 0.94549 0.93104)"
@@ -81,12 +81,12 @@ typography:
     lineHeight: 1.2
     letterSpacing: "-0.01em"
   interface:
-    fontFamily: "Wanderland CJK, Geist Mono Variable, system-ui, sans-serif"
+    fontFamily: "Wispora CJK, Geist Mono Variable, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 500
     lineHeight: 1.5
   card:
-    fontFamily: "Wanderland CJK, Geist Mono Variable, SFMono-Regular, Consolas, monospace"
+    fontFamily: "Wispora CJK, Geist Mono Variable, SFMono-Regular, Consolas, monospace"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: "24px"
@@ -100,13 +100,15 @@ rounded:
   floating-menu: "22px"
 ---
 
-# Design System: Wanderland V0.2
+# Design System: Wispora V0.2
 
 ## 视觉基准
 
-当前界面的权威视觉来源是 Figma 文件「收藏库」中的 `V0.1.1 / 主页`（节点 `360:391`）。产品与技术边界仍以 `PRODUCT.md`、`TECH-STACK.md` 为准；视觉文字、字体、色号、间距和站点资源以该设计稿为准。
+品牌的权威来源为 [Figma「Wispora / brand-shadow」](https://www.figma.com/design/EJx5RlgQ910DaORAGylmne/Wispora?node-id=6456-52898)。组合标志使用 `790×200` 原始比例，图标为 `200×200`；字标为 Dinish Condensed Bold，使用原稿导出的轮廓 SVG，不通过系统字体近似绘制。
 
-界面采用暖灰画布、纯白侧栏与纯白卡片。Wanderland 的品牌主色以 `color(display-p3 1 0.4627 0.0549)` 为权威值，统一用于品牌、焦点、标签、侧栏选中态和主要操作；`#ff760e` 只是不支持 P3 时的兼容回退。卡片内容保持紧凑，封面承担主要视觉信息。
+工作台布局的权威视觉来源是同一 Figma 文件中的 `V0.1.1 / 主页`（节点 `360:391`）。产品与技术边界仍以 `PRODUCT.md`、`TECH-STACK.md` 为准；未被新品牌稿覆盖的组件布局与交互继续遵循现有设计。
+
+界面采用暖灰画布、纯白侧栏与纯白卡片。Wispora 的品牌主色以 `color(display-p3 1 0.4627 0.0549)` 为权威值，统一用于品牌、焦点、标签、侧栏选中态和主要操作；`#ff760e` 只是不支持 P3 时的兼容回退。卡片内容保持紧凑，封面承担主要视觉信息。
 
 ## 颜色系统
 
@@ -121,7 +123,7 @@ rounded:
 
 ### 深色主题
 
-- 参考 [Libraries.dev Beam 的暗色设计系统](https://libraries.dev/beam)（2026-09-26 核对其 `site.css`）：页面基底 `#121212`，主表面 `#181818`，次级交互层使用略亮的深灰，主要文字亮白、说明文字分级灰。只借鉴明度层级；Webloom 继续使用已确认的 P3 品牌橙，不移植 Beam 的蓝色强调色、字体或组件造型。
+- 参考 [Libraries.dev Beam 的暗色设计系统](https://libraries.dev/beam)（2026-09-26 核对其 `site.css`）：页面基底 `#121212`，主表面 `#181818`，次级交互层使用略亮的深灰，主要文字亮白、说明文字分级灰。只借鉴明度层级；Wispora 继续使用已确认的 P3 品牌橙，不移植 Beam 的蓝色强调色、字体或组件造型。
 - 暗色语义值集中在 `src/design-system/theme.css`，先给 sRGB 回退，再在 `@supports (color: color(display-p3 1 1 1))` 内提供同名 P3 权威值。关键核对值：`canvas #121212`、`surface #181818`、`surface-secondary #202020`、`surface-subtle #262626`、`border-subtle #303030`、`ink #F5F5F5`、`text #DEDEDE`、`muted #B1B1B1`。状态色在暗背景下提亮，柔和状态底色压暗；标签文字改用高对比橙，主按钮仍使用原品牌橙。
 - `html[data-theme]` 控制语义 token 和浏览器 `color-scheme`；外观设置提供“系统 / 浅色 / 深色”三选一，选择保存在 `chrome.storage.local`。未设置时默认跟随系统，并实时响应 `prefers-color-scheme` 变化。工作台、设置与设计系统预览共用当前主题；快速收藏浮层固定使用浅色，避免受当前网页或系统主题影响。开发预览的色值标签随实际主题切换。
 - 主题选择区参考 [Adi 的 Theme switcher 视频](https://x.com/AdityaSur11/status/2103024134607282215/video/1)，仅借鉴切换区：三张并排的微型工作台缩略图按“跟随系统 / 深色 / 浅色”排列，每张卡下方显示对应名称。“跟随系统”示意图固定为左半暗色、右半浅色，两半分别使用完整的暗色与浅色预览并在卡片正中对齐；实际选择“跟随系统”时，界面仍随设备外观切换。手动选择的浅色、深色预览分别固定显示对应外观。缩略图在所有屏幕宽度下保持 1.6:1 宽高比，并随可用宽度等比缩放。浅色和系统缩略图用略高对比的边框，并使内部浅色底面与页面背景有轻微色差。选中卡用当前主题的 `ink` 细描边，键盘焦点仍使用品牌橙焦点环；不引入视频中的弹窗标题、关闭按钮或保存按钮。预览中的中间灰（如 `#5A5A5A`）只用于静态示意，不是应用语义色。
@@ -130,7 +132,7 @@ rounded:
 ## 布局
 
 - 桌面侧栏默认宽度 `220px`，可通过右侧拖拽在 `176–320px` 之间调整；松开时接近默认宽度 `±20px` 会吸附回 `220px`。侧栏保持白底，右侧使用 `border-subtle #eee9e3` 细分隔线。导航滚动条紧贴侧栏右边缘，位置随共享侧栏留白 token 计算，首页与设置页共用此规则。
-- 侧栏品牌图标为 `30px`，Wanderland 字标为 `22px`、深灰色、`600` 字重；普通导航文字为 `14px`，未选中导航图标使用比文字浅一级的 `muted` 色；选中项使用中性灰背景和深灰文字、图标，不使用品牌色。手动最小化或窄屏折叠时，侧栏宽度为 `64px`，两侧外侧留白统一为 `10px`，导航选项宽 `44px`，通过收窄选项内部图标两侧空间减少背景宽度；品牌图标仍为 `30px`，文字隐藏。
+- 侧栏使用高 `30px` 的 Wispora 原稿组合标志（图标与字标等比缩放）；折叠时只显示 `30×30px` 原稿图标；普通导航文字为 `14px`，未选中导航图标使用比文字浅一级的 `muted` 色；选中项使用中性灰背景和深灰文字、图标，不使用品牌色。手动最小化或窄屏折叠时，侧栏宽度为 `64px`，两侧外侧留白统一为 `10px`，导航选项宽 `44px`，通过收窄选项内部图标两侧空间减少背景宽度；品牌图标仍为 `30px`，文字隐藏。
 - 主内容左右内边距 `12px`；顶部导航高 `76px`，筛选栏从 `102px` 开始。
 - 搜索框宽 `560px`、高 `52px`、胶囊圆角，白底，不再显示副标题。
 - 工具栏高 `52px`。分段控件和视图切换使用 `surface-muted #e8e3db` 底色，当前项为白色。
@@ -163,7 +165,7 @@ rounded:
 - 描述使用 `font-description` 系统无衬线字体栈，包含其中的英文与数字，以提升连续阅读体验；macOS 优先系统 UI 字体，Windows/Linux 使用对应平台系统字体回退。
 - 中文字体范围明确包含汉字、CJK 符号、全角标点，以及 `……`、`——`、中文引号和间隔号等界面常用中文标点；不得只依赖普通缺字回退，否则 Geist 会优先接管省略号等通用标点。
 - `font-heading` 复用 `font-interface`：中文大标题使用平台系统无衬线字体，英文与数字沿用界面混排规则。工作台视图标题、设置页大标题和快照阅读标题共用此规则，字重统一为 600。
-- 品牌文字优先使用 Dinish Condensed 28px/800；英文数字使用 Geist Mono，中文导航分组 12px，菜单 14px。
+- 品牌标志使用 Dinish Condensed Bold 的原稿轮廓 SVG，保留原始字距，不依赖字体回退；英文数字使用 Geist Mono，中文导航分组 12px，菜单 14px。
 - 搜索与界面说明为 14–15px；域名 10px，卡片内容 14px/24px。
 - 工作台全局搜索框的输入文字、占位文字和清除动画文字统一使用 `font-description` 系统字体栈；占位文案末尾使用单个“…”省略号。
 - 字号 token：Caption 11px、Label 12px、Control 13px、Body 14px、Title 16px、Heading 24px。正文默认使用 `text`，只有标题和关键数字使用 `ink`。
@@ -172,14 +174,14 @@ rounded:
 
 - 通用界面图标统一使用 `@remixicon/react`，默认选用 `Line` 版本；选中/收藏状态可使用 `Fill` 版本。
 - 工作台侧栏使用 Figma `V0.1.1` 导出的原始 16px SVG，并通过共享 `SidebarIcon` 蒙版继承当前文字颜色，以保证设计稿轮廓与选中态颜色同时准确。
-- 应用品牌图标使用用户提供的 `public/assets/logo.svg`，不再用图标库近似替代。
+- 应用品牌统一复用 `BrandLogo`：`public/assets/logo.svg` 为图标，`wordmark.svg` 为独立字标，`brand-lockup.svg` 为完整组合标志。三个 SVG 均为指定节点的原始导出，保留 P3 声明与根尺寸；扩展 `public/icon/{16,32,48,128}.png` 直接由同一图标节点按目标尺寸导出 sRGB PNG，不简化或重绘小尺寸形状。关于页使用原图标与轮廓字标，采集浮层通过扩展资源地址使用完整组合标志。
 - 不使用 Unicode、emoji 或临时手绘 SVG 代替界面图标。
 - 卡片站点图标与内容封面属于收藏内容，不属于通用图标系统。来源行的 favicon 以原始图片或 SVG 形状显示在 `16×16px` 区域，不统一加圆角、边框、内边距或阴影。关注源头像在卡片、紧凑卡片、详情列表中分别为 `40px`、`60px`、`64px`，统一使用一圈浅色细边框与近圆形大圆角，边框内的留白随尺寸由 `2px` 增至 `3px`；图片不叠加第二圈白边或阴影。站点图标优先使用页面声明并采集保存的 favicon；缺失或加载失败时尝试站点根目录 `/favicon.ico`，仍失败则显示 Remix Icon 通用网站占位，不允许留下空白。采集时仅对已授权同域、可解码的图标做本地像素分析：浅色透明标志自动使用深色底，其他图片保持原样；分析失败不影响收藏。详情编辑提供“图标底色：自动 / 浅底 / 深底”的预览与人工修正，人工设置优先于自动分析。内容封面应使用设计稿导出的实际资源并保存在 `public/assets/`，或使用收藏数据中的真实资源。
 - 详情编辑中的“图标底色”与其他字段保持同一阅读顺序：标题单独占一行，下方左侧为当前图标预览，右侧为底色选项及说明；窄屏时说明可以换行，但预览和选项仍保持左右对应。
 
 ## 组件规则
 
-- Intent UI 是共享 UI 组件的权威结构来源，Wanderland 仅在项目内调整视觉 token、尺寸和必要的领域组合，不重新设计同名基础控件。React Aria Components 只作为 `src/components/ui/` 内部的交互原语，页面和 feature 不直接引用。
+- Intent UI 是共享 UI 组件的权威结构来源，Wispora 仅在项目内调整视觉 token、尺寸和必要的领域组合，不重新设计同名基础控件。React Aria Components 只作为 `src/components/ui/` 内部的交互原语，页面和 feature 不直接引用。
 - 页面优先组合 `src/components/ui/` 与 `src/components/inspiration/` 中的已有组件。
 - 可通过 `props`、`variant`、`size`、`className` 扩展时不得复制组件。
 - 新增视觉状态先写入语义 token 或现有组件 variant，再进入页面。

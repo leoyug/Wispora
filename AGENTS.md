@@ -2,7 +2,7 @@
 
 ## 项目介绍
 
-个人灵感库是一个面向设计与开发工作的 Chrome/Edge 浏览器扩展。用户可以用 URL 低摩擦添加网站、文章或关注源，由系统在后台生成描述与标签，并通过内容类型、星标、快捷视图和封面优先的工作台快速重新找到内容。
+Wispora 是一个面向设计与开发工作的 Chrome/Edge 浏览器扩展。用户可以用 URL 低摩擦添加网站、文章或关注源，由系统在后台生成描述与标签，并通过内容类型、星标、快捷视图和封面优先的工作台快速重新找到内容。
 
 V1 坚持本地优先：不要求账户或后端，业务数据保存到 IndexedDB，少量设置保存到 `chrome.storage.local`。AI 是可选助手；AI 不可用时，收藏、浏览、编辑与搜索必须继续工作。
 
@@ -67,7 +67,7 @@ src/
 开发页面时必须优先复用已有组件。
 
 - 先查找 `src/components/ui/`、`src/components/layout/`、对应领域组件目录和相邻 feature。
-- 现有组件不能满足需求时，先查询 Intent UI 当前版本的 registry；存在对应组件时复制源码并按 Wanderland 的语义 token 定制，不得跳过 Intent UI 直接从 React Aria 原语重新设计同类组件。
+- 现有组件不能满足需求时，先查询 Intent UI 当前版本的 registry；存在对应组件时复制源码并按 Wispora 的语义 token 定制，不得跳过 Intent UI 直接从 React Aria 原语重新设计同类组件。
 - `features/`、`entrypoints/` 与领域组件不得直接导入 `react-aria-components`；React Aria import 只允许出现在 `src/components/ui/` 的 Intent UI 适配层。若业务需要新交互，先把对应原语收口为共享组件。
 - 复制 Intent UI 组件时保留其组件分层、slot、受控状态和可访问性行为；视觉类名改用现有语义 token。Intent UI 示例中的 Heroicons 必须替换为项目统一的 Remix Icon，不得引入第二套图标依赖。
 - 如果已有组件可以通过 `props`、`variant`、`size`、`slot` 或 `className` 扩展，应优先扩展现有组件，而不是重新创建相似组件。

@@ -2,7 +2,7 @@ import { z } from "zod";
 import DOMPurify from "dompurify";
 import type { CoverData, PersistentTask, SavedItem, SavedView, Snapshot, Tag } from "@/src/domain/inspiration";
 import type { ContentDigest, DigestEntry } from "@/src/domain/digest";
-import { db, type WanderlandDatabase } from "./database";
+import { db, type WisporaDatabase } from "./database";
 
 const digestEntrySchema = z.object({
   id: z.string().min(1), kind: z.enum(["website", "article", "follow"]),
@@ -18,7 +18,7 @@ const digestSchema = z.object({
 }).refine((value) => value.periodEnd > value.periodStart);
 
 const backupSchema = z.object({
-  format: z.literal("wanderland-backup"),
+  format: z.enum(["wispora-backup", "wanderland-backup"]),
   version: z.literal(1),
   exportedAt: z.number().finite(),
   digests: z.array(digestSchema).optional(),
@@ -75,13 +75,13 @@ function decodeDigest(digest: z.infer<typeof digestSchema>): ContentDigest {
   return { ...digest, entries: digest.entries.map(decodeDigestEntry), retrospective: digest.retrospective.map(decodeDigestEntry) };
 }
 
-export async function createBackup(database: WanderlandDatabase = db) {
+export async function createBackup(database: WisporaDatabase = db) {
   // Read every store in one readonly transaction to produce a consistent snapshot.
   const [savedItems, snapshots, tags, savedViews, tasks, digests] = await database.transaction("r", [database.savedItems, database.snapshots, database.tags, database.savedViews, database.tasks, database.digests], async () => Promise.all([
     database.savedItems.toArray(), database.snapshots.toArray(), database.tags.toArray(), database.savedViews.toArray(), database.tasks.toArray(), database.digests.toArray(),
   ]));
   return {
-    format: "wanderland-backup" as const,
+    format: "wispora-backup" as const,
     version: 1 as const,
     exportedAt: Date.now(),
     savedItems: await Promise.all(savedItems.map(encodeCover)),
@@ -92,7 +92,7 @@ export async function createBackup(database: WanderlandDatabase = db) {
 
 export function parseBackup(value: unknown): Backup {
   const result = backupSchema.safeParse(value);
-  if (!result.success) throw new Error("备份格式无效或版本不受支持。请选择 Wanderland 导出的 JSON 文件。");
+  if (!result.success) throw new Error("备份格式无效或版本不受支持。请选择 Wispora 导出的 JSON 文件。");
   const backup = result.data;
   const unique = (values: string[]) => values.length === new Set(values).size;
   if (!unique((backup.digests ?? []).map((digest) => digest.id))) throw new Error("备份中包含重复简报，未进行恢复。");
@@ -106,7 +106,7 @@ export function parseBackup(value: unknown): Backup {
   return backup;
 }
 
-export async function restoreBackup(backup: Backup, database: WanderlandDatabase = db) {
+export async function restoreBackup(backup: Backup, database: WisporaDatabase = db) {
   // Revalidate at the write boundary, even when called without the import dialog.
   const valid = parseBackup(backup);
   const items = valid.savedItems.map(decodeCover);

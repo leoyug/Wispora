@@ -1,6 +1,6 @@
-# Wanderland 产品开发路线图
+# Wispora 产品开发路线图
 
-> 更新日期：2026-10-04
+> 更新日期：2026-10-17
 > 当前版本：`v0.7.2`
 > 当前阶段：收藏库视觉与交互细节收尾完成，进入 V1 发布验证
 
@@ -22,6 +22,7 @@ V1 的目标不是堆积功能，而是打通一个可靠的本地闭环：
 
 ### 已完成
 
+- 2026-10-17：按指定 Wispora 品牌稿更新名称、SVG 组合标志、字标、扩展图标与品牌入口；旧本地数据库、设置与备份继续兼容。
 - WXT、React、TypeScript 和 Chrome Manifest V3 工程骨架。
 - 扩展按钮打开完整 Dashboard，权限保持为 `activeTab`、`scripting` 和 `storage`。
 - Wanderland V0.2 设计系统、Display-P3 token、共享 UI 原语和开发预览页。

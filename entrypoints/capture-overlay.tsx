@@ -5,8 +5,8 @@ import { CapturePanel } from "@/src/features/capture/CapturePanel";
 import panelCss from "@/src/features/capture/capture-panel.css?inline";
 import { applyLanguagePreference, getAppLanguageSnapshot, normalizeLanguagePreference, subscribeLanguage } from "@/src/i18n/language";
 
-const HOST_NAME = "wanderland-capture-overlay";
-const CLOSE_EVENT = "wanderland:capture-overlay-close";
+const HOST_NAME = "wispora-capture-overlay";
+const CLOSE_EVENT = "wispora:capture-overlay-close";
 
 export default defineUnlistedScript({
   globalName: true,

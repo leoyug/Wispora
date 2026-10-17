@@ -8,6 +8,7 @@ import { aiProviderPresets } from "@/src/ai/presets";
 import type { ExtensionRequest } from "@/src/capture/types";
 import { AppShell, type SettingsSection } from "@/src/components/layout/AppShell";
 import { Button } from "@/src/components/ui/Button";
+import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { Field, Input } from "@/src/components/ui/Field";
 import { SearchField, SearchInput } from "@/src/components/ui/SearchField";
@@ -293,7 +294,7 @@ function BackupSettings() {
       const backup = await createBackup();
       const file = new Blob([JSON.stringify(backup)], { type: "application/json" });
       if (file.size > MAX_BACKUP_BYTES) throw new Error(t("备份超过 100 MB，当前版本无法安全处理；未下载不可恢复的文件。"));
-      const url = URL.createObjectURL(file); const link = document.createElement("a"); link.href = url; link.download = `wanderland-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const url = URL.createObjectURL(file); const link = document.createElement("a"); link.href = url; link.download = `wispora-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setResult(tf("已准备下载：{count} 个收藏项，含标签、快照、封面和快捷视图。", { count: backup.savedItems.length }));
       showToast(t("备份文件已准备下载"), { tone: "success" });
     } catch (cause) { setError(cause instanceof Error ? t(cause.message) : t("导出失败，未生成备份文件。请检查浏览器存储空间后重试。")); } finally { setBusy(false); }
@@ -396,7 +397,7 @@ function AppearanceSettings() {
   return <div className="settings-form">
     <SettingsHeader title={t("外观")} description={t("选择适合当前环境的工作台外观。")} />
     <section className="settings-form-section">
-      <SettingsSectionHeading title={t("主题")} description={t("选择“跟随系统”时，Webloom 会随设备外观自动切换。")} />
+      <SettingsSectionHeading title={t("主题")} description={t("选择“跟随系统”时，Wispora 会随设备外观自动切换。")} />
       <RadioGroup label={t("主题")} className="appearance-theme-options" orientation="horizontal" value={theme} options={themeOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={(next) => void setThemePreference(next)} renderOption={(option) => <>
         <span className={`theme-preview theme-preview--${option.value}`} aria-hidden="true">
           {option.value === "system" ? <><ThemePreviewScene tone="dark" half="left" /><ThemePreviewScene tone="light" half="right" /></> : <ThemePreviewScene tone={option.value} />}
@@ -454,16 +455,16 @@ function AboutSettings() {
   return <div className="settings-form about-settings">
     <SettingsHeader title={t("关于")} />
     <div className="about-product">
-      <img src="/assets/logo.svg" alt="" aria-hidden="true" />
-      <h2>WEBLOOM</h2>
+      <BrandLogo variant="mark" className="about-product-mark" decorative />
+      <h2><BrandLogo variant="wordmark" className="about-product-wordmark" /></h2>
       <p>{t("在浏览器内收藏、整理并重新发现网站、文章与关注源。")}</p>
     </div>
     <SettingsCard className="about-details">
       <SettingsRow title={t("开发者")} description="Leo" control={<a className="button button-secondary" href="https://github.com/leoyug" target="_blank" rel="noopener noreferrer">{t("前往主页")} <RiArrowRightUpLine size={16} aria-hidden="true" /></a>} />
-      <SettingsRow title={t("当前版本")} description={tf("WEBLOOM v{version} · 数据只保存在当前浏览器。", { version })} control={<Button variant="secondary" isDisabled={isCheckingUpdate} onPress={() => void checkForUpdates()}>{isCheckingUpdate ? t("正在检查…") : t("检查更新")}</Button>} />
+      <SettingsRow title={t("当前版本")} description={tf("Wispora v{version} · 数据只保存在当前浏览器。", { version })} control={<Button variant="secondary" isDisabled={isCheckingUpdate} onPress={() => void checkForUpdates()}>{isCheckingUpdate ? t("正在检查…") : t("检查更新")}</Button>} />
       <SettingsRow title={t("支持")} control={<div className="about-support-links">
-        <a href="https://github.com/leoyug/wanderland" target="_blank" rel="noopener noreferrer">GitHub <RiArrowRightUpLine size={16} aria-hidden="true" /></a>
-        <a href="https://github.com/leoyug/wanderland/issues" target="_blank" rel="noopener noreferrer">{t("反馈问题")} <RiArrowRightUpLine size={16} aria-hidden="true" /></a>
+        <a href="https://github.com/leoyug/Wispora" target="_blank" rel="noopener noreferrer">GitHub <RiArrowRightUpLine size={16} aria-hidden="true" /></a>
+        <a href="https://github.com/leoyug/Wispora/issues" target="_blank" rel="noopener noreferrer">{t("反馈问题")} <RiArrowRightUpLine size={16} aria-hidden="true" /></a>
       </div>} />
     </SettingsCard>
   </div>;

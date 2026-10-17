@@ -1,9 +1,9 @@
 import { buildDigest, digestId, digestPeriod, type ContentDigest, type DigestKind } from "@/src/domain/digest";
-import { db, type WanderlandDatabase } from "./database";
+import { db, type WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
 
 export class DigestRepository {
-  constructor(private readonly database: WanderlandDatabase = db) {}
+  constructor(private readonly database: WisporaDatabase = db) {}
   list(kind: DigestKind) { return this.database.digests.where("kind").equals(kind).reverse().sortBy("periodStart"); }
   get(id: string) { return this.database.digests.get(id); }
   async markRead(id: string) {

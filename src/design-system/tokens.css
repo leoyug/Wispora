@@ -5,7 +5,7 @@
  * The restricted range lets Latin letters and numerals fall through to Geist.
  */
 @font-face {
-  font-family: "Wanderland CJK";
+  font-family: "Wispora CJK";
   src:
     local("PingFangSC-Regular"),
     local("PingFang SC Regular"),
@@ -36,7 +36,7 @@
 }
 
 @font-face {
-  font-family: "Wanderland CJK";
+  font-family: "Wispora CJK";
   src:
     local("PingFangSC-Medium"),
     local("PingFang SC Medium"),
@@ -71,7 +71,7 @@
 }
 
 @font-face {
-  font-family: "Wanderland CJK";
+  font-family: "Wispora CJK";
   src:
     local("PingFangSC-Semibold"),
     local("PingFang SC Semibold"),
@@ -106,7 +106,7 @@
 }
 
 @font-face {
-  font-family: "Wanderland CJK";
+  font-family: "Wispora CJK";
   src:
     local("PingFangSC-Semibold"),
     local("PingFang SC Semibold"),
@@ -206,7 +206,7 @@
   text-rendering: optimizeLegibility;
   --font-brand: "Dinish Condensed", "Arial Narrow", "Geist Mono Variable", "PingFang SC", sans-serif;
   --font-heading: var(--font-interface);
-  --font-interface: "Wanderland CJK", "Geist Mono Variable", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", system-ui, sans-serif;
+  --font-interface: "Wispora CJK", "Geist Mono Variable", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", system-ui, sans-serif;
   --font-metadata: "Geist Mono Variable", "SFMono-Regular", Consolas, monospace;
   --font-content-title: var(--font-interface);
   --font-description: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", system-ui, sans-serif;
@@ -424,7 +424,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .brand:hover { color: var(--color-brand-hover); }
 .brand.button-ghost:hover { background: transparent; }
 .brand:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-control); }
-.brand-wordmark { width: 164px; height: auto; display: block; object-fit: contain; }
+.brand-logo { display: block; max-width: 100%; height: auto; object-fit: contain; }
+.brand-wordmark { width: auto; height: 30px; object-position: left center; }
 .brand-mark { width: 30px; height: 30px; display: none; object-fit: contain; }
 .sidebar-navigation-wrap { min-height: 0; position: relative; flex: 1 1 auto; margin-top: 16px; }
 .sidebar-navigation { width: 100%; height: 100%; display: grid; align-content: start; gap: 16px; padding: 0 0 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
@@ -615,7 +616,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .settings-card-row-detail .is-error { color: var(--color-danger); }
 .about-settings { gap: 32px; }
 .about-product { display: grid; justify-items: center; gap: 8px; text-align: center; }
-.about-product img { width: 88px; height: 88px; margin-bottom: 12px; }
+.about-product .about-product-mark { width: 88px; height: 88px; margin-bottom: 12px; }
+.about-product .about-product-wordmark { width: auto; height: 40px; }
 .about-product h2 { margin: 0; color: var(--color-ink); font-family: var(--font-brand); font-size: 32px; font-weight: 700; line-height: 1.15; }
 .about-product p { max-width: min(100%, 520px); margin: 0; color: var(--color-muted); font-size: var(--text-body); line-height: 1.5; }
 .about-details .settings-card-row-control { color: var(--color-ink); font-size: var(--text-control); font-weight: 600; }
@@ -1208,7 +1210,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .type-specimens { display: grid; gap: 27px; }
 .type-specimens > div > span { display: block; margin-bottom: 7px; color: var(--color-muted); font-size: 11px; }
 .type-specimens p { max-width: 70ch; margin: 0; color: var(--color-text); font-size: 15px; line-height: 1.55; }
-.type-specimens .display-type { color: var(--color-brand); font-family: var(--font-brand); font-size: clamp(38px, 5vw, 64px); font-weight: 650; line-height: 1.03; letter-spacing: -.035em; }
+.brand-specimens { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; }
+.brand-specimen-lockup { width: auto; height: 40px; }
+.brand-specimen-mark { width: 40px; height: 40px; }
+.brand-specimen-wordmark { width: auto; height: 40px; }
+.brand-icon-sizes { display: flex; flex-wrap: wrap; align-items: end; gap: 24px; width: 100%; }
+.brand-icon-sizes figure { display: grid; justify-items: center; gap: 8px; margin: 0; }
+.brand-icon-sizes img { display: block; }
+.brand-icon-sizes figcaption { color: var(--color-muted); font-family: var(--font-metadata); font-size: var(--text-label); }
+.type-specimens .display-wordmark { width: auto; height: clamp(38px, 5vw, 64px); }
 .type-specimens .headline-type { color: var(--color-ink); font-size: 34px; font-weight: 550; line-height: 1.12; letter-spacing: -.025em; }
 .type-specimens .content-title-type { color: var(--color-ink); font-family: var(--font-content-title); font-weight: 500; }
 .type-specimens .description-type { font-family: var(--font-description); }
@@ -1289,7 +1299,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .app-shell { display: block; }
   .sidebar { position: static; width: 100%; height: 58px; flex-direction: row; align-items: center; padding: 7px 12px; box-shadow: inset 0 -1px var(--color-border-subtle); }
   .brand { grid-template-columns: 1fr; width: 100%; }
-  .brand-wordmark { display: block; width: 164px; }
+  .brand-wordmark { display: block; width: auto; }
   .brand-mark { display: none; }
   .sidebar-navigation, .sidebar-bottom, .brand .button { display: none; }
   .library-intro { min-height: 104px; }
@@ -1310,7 +1320,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .app-shell.is-settings { display: block; }
   .is-settings .sidebar { position: relative; width: 100%; height: auto; display: flex; flex-direction: column; align-items: stretch; padding: 12px var(--space-sidebar-edge); box-shadow: inset 0 -1px var(--color-border-subtle); }
   .is-settings .brand { width: auto; grid-template-columns: 1fr; }
-  .is-settings .brand-wordmark { display: block; width: 164px; }
+  .is-settings .brand-wordmark { display: block; width: auto; }
   .is-settings .brand-mark { display: none; }
   .is-settings .nav-item > span:not(.sidebar-icon) { display: block; }
   .is-settings .sidebar-navigation-wrap { flex: none; margin-top: 8px; }
