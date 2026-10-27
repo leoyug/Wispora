@@ -1,9 +1,10 @@
-import { RiArrowDownLine, RiArrowUpLine, RiCornerDownLeftLine, RiSearchLine } from "@remixicon/react";
+import { RiSearchLine } from "@remixicon/react";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { SiteIcon } from "@/src/components/inspiration/SiteIcon";
 import { Badge } from "@/src/components/ui/Badge";
 import { Button } from "@/src/components/ui/Button";
 import { CommandMenu, CommandMenuDescription, CommandMenuFooter, CommandMenuItem, CommandMenuLabel, CommandMenuList, CommandMenuSearch } from "@/src/components/ui/CommandMenu";
+import { KeyboardShortcut } from "@/src/components/ui/KeyboardShortcut";
 import { primaryModifier } from "@/src/lib/platform";
 import { t, tf } from "@/src/i18n/ui";
 import { useDebouncedSearch, type SearchItems } from "./useDebouncedSearch";
@@ -79,7 +80,7 @@ export function LibrarySearchDialog({ query, onQueryChange, onClose, onSubmit, o
         else if (pending || failed) { event.preventDefault(); event.stopPropagation(); }
       }
     }}>
-      <CommandMenuSearch inputRef={inputRef} label={t("搜索收藏项")} placeholder={t("搜索名称、描述或关键词…")} clearLabel={t("清除搜索词")} closeLabel={t("取消搜索")} onClear={() => { changeQuery(""); inputRef.current?.focus(); }} onClose={onClose} onCompositionStart={() => { composingRef.current = true; setComposing(true); }} onCompositionEnd={(event) => { composingRef.current = false; setComposing(false); changeQuery(event.currentTarget.value); }} />
+      <CommandMenuSearch inputRef={inputRef} label={t("搜索收藏项")} placeholder={t("搜索名称、描述或关键词…")} clearLabel={t("清除搜索词")} onClear={() => { changeQuery(""); inputRef.current?.focus(); }} onCompositionStart={() => { composingRef.current = true; setComposing(true); }} onCompositionEnd={(event) => { composingRef.current = false; setComposing(false); changeQuery(event.currentTarget.value); }} />
       <div className="command-menu-context"><span>{tf("在{scope}中搜索", { scope: scopeLabel })}</span><span>{t("本地搜索")}</span></div>
       {tags.length ? <div className="command-menu-conditions" aria-label={t("当前标签条件")}>{tags.map((tag) => <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>)}</div> : null}
       <div className="command-menu-body" aria-busy={pending}>
@@ -95,8 +96,12 @@ export function LibrarySearchDialog({ query, onQueryChange, onClose, onSubmit, o
         )}
       </div>
       <CommandMenuFooter>
-        <span className="command-menu-hints" aria-hidden="true"><span><RiArrowUpLine size={13} /><RiArrowDownLine size={13} />{t("选择")}</span><span><RiCornerDownLeftLine size={14} />{t("预览")}</span></span>
-        <Button variant="contrast" size="sm" onPress={submit} isDisabled={!ready || composing} aria-keyshortcuts="Meta+Enter Control+Enter">{pending || failed ? t("查看全部结果") : tf("查看全部 {count} 条", { count: items.length })}<kbd>{modifier === "⌘" ? "⌘↵" : "Ctrl+Enter"}</kbd></Button>
+        <div className="command-menu-hints">
+          <span className="command-menu-navigation-hint" aria-hidden="true"><KeyboardShortcut keys={["↑"]} /><KeyboardShortcut keys={["↓"]} /><span>{t("选择")}</span></span>
+          <span className="command-menu-navigation-hint" aria-hidden="true"><KeyboardShortcut keys={["↵"]} /><span>{t("预览")}</span></span>
+          <Button variant="ghost" size="sm" className="command-menu-close" aria-label={t("取消搜索")} aria-keyshortcuts="Escape" onPress={onClose}><KeyboardShortcut keys={["Esc"]} aria-hidden="true" /><span className="command-menu-close-label">{t("关闭")}</span></Button>
+        </div>
+        <Button variant="contrast" size="sm" onPress={submit} isDisabled={!ready || composing} aria-keyshortcuts="Meta+Enter Control+Enter">{pending || failed ? t("查看全部结果") : tf("查看全部 {count} 条", { count: items.length })}<KeyboardShortcut keys={[modifier, modifier === "⌘" ? "↵" : "Enter"]} aria-hidden="true" /></Button>
       </CommandMenuFooter>
     </CommandMenu>
   );

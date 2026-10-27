@@ -39,22 +39,19 @@ interface CommandMenuSearchProps {
   label: string;
   placeholder: string;
   clearLabel: string;
-  closeLabel: string;
   onClear: () => void;
-  onClose: () => void;
   inputRef?: Ref<HTMLInputElement>;
   onCompositionStart?: ComponentProps<typeof SearchInput>["onCompositionStart"];
   onCompositionEnd?: ComponentProps<typeof SearchInput>["onCompositionEnd"];
 }
 
-export function CommandMenuSearch({ label, placeholder, clearLabel, closeLabel, onClear, onClose, inputRef, onCompositionStart, onCompositionEnd }: CommandMenuSearchProps) {
+export function CommandMenuSearch({ label, placeholder, clearLabel, onClear, inputRef, onCompositionStart, onCompositionEnd }: CommandMenuSearchProps) {
   const state = useContext(AutocompleteStateContext);
   return (
     <SearchField className="command-menu-search" aria-label={label} autoFocus>
       <RiSearchLine size={22} aria-hidden="true" />
       <SearchInput ref={inputRef} placeholder={placeholder} autoComplete="off" spellCheck={false} onCompositionStart={onCompositionStart} onCompositionEnd={onCompositionEnd} />
       {state?.inputValue ? <Button variant="ghost" size="icon" aria-label={clearLabel} onPress={onClear}><RiCloseLine size={17} /></Button> : null}
-      <Button variant="ghost" size="sm" className="command-menu-escape" aria-label={closeLabel} onPress={onClose}><kbd>Esc</kbd></Button>
     </SearchField>
   );
 }
@@ -74,6 +71,27 @@ const renderer: CollectionRenderer = {
     const { isPending } = useContext(CommandContext);
     const { preferredFocusId, focusRequest = "initial", onActiveChange } = useContext(CommandFocusContext);
     const restored = useRef<string | null>(null);
+    const lastPointer = useRef<{ x: number; y: number } | null>(null);
+    useEffect(() => {
+      const list = props.scrollRef?.current;
+      if (!list || !state || isPending) return;
+      const keys = new Map([...state.collection].map((item) => [String(item.key), item.key]));
+      // Use actual movement, including inside an already hovered row. A stationary
+      // pointer must not compete with keyboard navigation or automatic scrolling.
+      const focusPointerItem = (event: PointerEvent) => {
+        if (event.pointerType === "touch" || !(event.target instanceof Element)) return;
+        const previous = lastPointer.current;
+        lastPointer.current = { x: event.clientX, y: event.clientY };
+        if (previous?.x === event.clientX && previous.y === event.clientY) return;
+        const row = event.target.closest<HTMLElement>("[data-command-key]");
+        const key = row && list.contains(row) ? keys.get(row.dataset.commandKey ?? "") : undefined;
+        if (key == null || state.selectionManager.isDisabled(key)) return;
+        state.selectionManager.setFocused(true);
+        state.selectionManager.setFocusedKey(key);
+      };
+      list.addEventListener("pointermove", focusPointerItem);
+      return () => list.removeEventListener("pointermove", focusPointerItem);
+    }, [state, isPending, props.scrollRef]);
     useEffect(() => {
       if (state && !isPending && restored.current !== focusRequest && state.collection.size) {
         const key = preferredFocusId && state.collection.getItem(preferredFocusId) ? preferredFocusId : state.collection.getFirstKey();
@@ -101,7 +119,7 @@ export function CommandMenuList<T extends object>({ className, preferredFocusId,
 
 export function CommandMenuItem({ className, ...props }: ComponentProps<typeof AriaMenuItem>) {
   const { isPending } = useContext(CommandContext);
-  return <AriaMenuItem {...props} isDisabled={isPending || props.isDisabled} className={cn("command-menu-item", typeof className === "string" && className)} />;
+  return <AriaMenuItem {...props} data-command-key={props.id} isDisabled={isPending || props.isDisabled} className={cn("command-menu-item", typeof className === "string" && className)} />;
 }
 
 export function CommandMenuLabel(props: ComponentProps<typeof Text>) {

@@ -2,12 +2,13 @@ import type { Ref } from "react";
 import { RiSearchLine } from "@remixicon/react";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
+import { KeyboardShortcut } from "./KeyboardShortcut";
 
 interface SearchTriggerProps {
   query: string;
   placeholder: string;
   conditionLabel?: string;
-  shortcut: string;
+  shortcut: readonly string[];
   "aria-label": string;
   onPress: () => void;
   ref?: Ref<HTMLButtonElement>;
@@ -20,7 +21,7 @@ export function SearchTrigger({ query, placeholder, conditionLabel, shortcut, on
       <span className="search-trigger-copy" data-placeholder={!query || undefined}>{query || placeholder}</span>
       <span className="search-trigger-meta">
         {conditionLabel ? <Badge variant="neutral" size="sm">{conditionLabel}</Badge> : null}
-        <kbd className="shortcut" aria-hidden="true">{shortcut}</kbd>
+        <KeyboardShortcut keys={shortcut} aria-hidden="true" />
       </span>
     </Button>
   );

@@ -16,6 +16,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Card } from "@/src/components/ui/Card";
 import { Field } from "@/src/components/ui/Field";
 import { FacetFilter } from "@/src/components/ui/FacetFilter";
+import { KeyboardShortcut } from "@/src/components/ui/KeyboardShortcut";
 import { RadioGroup } from "@/src/components/ui/RadioGroup";
 import { SegmentedControl } from "@/src/components/ui/SegmentedControl";
 import { SelectMenu } from "@/src/components/ui/SelectMenu";
@@ -175,6 +176,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
 
         <PreviewSection title="搜索面板" description="Intent UI Command Menu 结构；受控输入、虚拟焦点、默认、结果、零结果、加载、失败和长内容状态共用当前主题。">
           <SearchPreview />
+          <div className="component-row" aria-label="快捷键提示"><KeyboardShortcut keys={["⌘", "K"]} /><KeyboardShortcut keys={["Esc"]} /><KeyboardShortcut keys={["⌘", "↵"]} /><KeyboardShortcut keys={["Ctrl", "K"]} /></div>
         </PreviewSection>
 
         <PreviewSection title="侧栏导航" description="使用设计稿原始图标；系统视图固定，用户视图支持改名、删除和拖动排序。">
@@ -193,7 +195,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
             <Field label="名称" defaultValue="Intent UI" />
             <Field label="来源链接" defaultValue="https://intentui.com" />
             <Field label="描述（可选）" placeholder="写下一段便于以后识别的描述" multiline />
-            <div className="inline-search"><RiSearchLine size={18} /><input aria-label="搜索示例" placeholder="Search designs, creatives, or keywords..." /><kbd>⌘ K</kbd></div>
+            <div className="inline-search"><RiSearchLine size={18} /><input aria-label="搜索示例" placeholder="Search designs, creatives, or keywords..." /><KeyboardShortcut keys={["⌘", "K"]} /></div>
           </div>
         </PreviewSection>
 

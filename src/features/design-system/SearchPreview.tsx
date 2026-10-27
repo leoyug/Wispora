@@ -33,7 +33,7 @@ export function SearchPreview() {
   const modifier = primaryModifier();
   return (
     <div className="component-stack">
-      <SearchTrigger query={applied} placeholder="搜索收藏…" conditionLabel="筛选 2" shortcut={modifier === "⌘" ? "⌘K" : "Ctrl+K"} aria-label="打开搜索预览" onPress={() => open("results")} />
+      <SearchTrigger query={applied} placeholder="搜索收藏…" conditionLabel="筛选 2" shortcut={[modifier, "K"]} aria-label="打开搜索预览" onPress={() => open("results")} />
       <div className="component-row">{scenarios.map(([value, label]) => <Button key={value} size="sm" onPress={() => open(value)}>{label}</Button>)}</div>
       {scenario ? <LibrarySearchDialog query={query} onQueryChange={setQuery} onClose={() => setScenario(null)} onSubmit={(value) => { setApplied(value); setScenario(null); }} onPreview={() => showToast("这是设计系统中的结果行；完整预览往返请在工作台验证。", { tone: "info" })} search={search} ready={scenario !== "loading"} scopeLabel="全部收藏" tags={scenario === "long" ? ["这是一个用于验证极长标签的示例名称 Design System"] : ["设计", "组件"]} position={position} /> : null}
     </div>

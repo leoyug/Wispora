@@ -12,6 +12,7 @@ import { Dialog, DialogTitle, Modal, ModalOverlay } from "@/src/components/ui/Mo
 import { RadioGroup } from "@/src/components/ui/RadioGroup";
 import { SelectMenu } from "@/src/components/ui/SelectMenu";
 import { TagInput } from "@/src/components/ui/TagInput";
+import { Tooltip } from "@/src/components/ui/Tooltip";
 import { inspirationRepository } from "@/src/db/repository";
 import type { ExtensionRequest } from "@/src/capture/types";
 import type { LibraryItem, SavedItemKind, UpdateSavedItemInput } from "@/src/domain/inspiration";
@@ -143,8 +144,8 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
       <Modal className="detail-modal">
         <SmoothCorners className="detail-smooth-surface" corners={{ radius: 16, smoothing: 0.6 }} autoEffects={false}>
         <Dialog className={cn("detail-dialog", `kind-${item.kind}`, isEditing && "is-editing")} aria-label={mode === "snapshot" ? t("正文快照") : t("收藏项详情")}>
-          <header className="detail-header">
-            {returnToSearch && mode === "details" ? <Button size="sm" variant="ghost" onPress={onClose}><RiArrowLeftLine size={17} />{t("返回搜索")}</Button> : <Button size="icon" variant="ghost" aria-label={mode === "details" ? t("关闭详情") : t("返回详情")} onPress={() => mode === "details" ? onClose() : setMode("details")}><RiCloseLine size={19} /></Button>}
+          <header className={cn("detail-header", returnToSearch && mode === "details" && "has-search-return")}>
+            {returnToSearch && mode === "details" ? <Tooltip content={t("返回搜索")} placement="bottom"><Button size="sm" variant="secondary" className="detail-return" aria-label={t("返回搜索")} onPress={onClose}><RiArrowLeftLine size={15} aria-hidden="true" /><span className="detail-return-label">{t("返回搜索")}</span></Button></Tooltip> : <Button size="icon" variant="ghost" aria-label={mode === "details" ? t("关闭详情") : t("返回详情")} onPress={() => mode === "details" ? onClose() : setMode("details")}><RiCloseLine size={19} /></Button>}
             <span className="detail-host" title={item.sourceLabel}>{mode === "snapshot" ? t("本地正文快照") : item.sourceLabel}</span>
             {mode === "details" ? isEditing ? <div className="detail-edit-controls"><Button variant="ghost" size="sm" onPress={cancelEdit}>{t("取消")}</Button><Button variant="primary" size="sm" onPress={() => void save()}>{t("保存修改")}</Button></div> : <a className="button button-primary button-sm" href={item.url} target="_blank" rel="noreferrer">{t("打开原网页 ")}<RiExternalLinkLine size={15} /></a> : <Button variant="primary" size="sm" onPress={() => setMode("details")}>{t("返回详情")}</Button>}
           </header>

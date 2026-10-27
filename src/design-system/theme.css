@@ -89,7 +89,7 @@ html[data-theme="dark"] {
 
 html[data-theme="dark"] .saved-view-editor input { background: var(--color-surface-subtle); }
 html[data-theme="dark"] .library-search { background: var(--color-surface); }
-html[data-theme="dark"] .library-search:not(:focus-within) { box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
+html[data-theme="dark"] .library-search:not(.search-trigger):not(:focus-within) { box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
 html[data-theme="dark"] .floating-menu-panel { background: var(--color-surface-glass); }
 html[data-theme="dark"] .design-system-header { background: var(--color-surface-glass); }
 

@@ -402,7 +402,7 @@ export function LibraryPage() {
     <AppShell items={items} activeScope={activeScope} activeSavedView={activeSavedView} savedViews={views} onScopeChange={changeScope} onSavedViewChange={changeSavedView} onSavedViewRename={renameSavedView} onSavedViewDelete={deleteSavedView} onSavedViewMove={moveSavedView} onOpenSettings={() => { window.location.hash = "#settings"; }}>
       <div className="library-page">
         <header className="library-intro">
-          <SearchTrigger ref={searchRef} query={query} placeholder={t("搜索收藏…")} conditionLabel={conditionCount ? tf("筛选 {count}", { count: conditionCount }) : undefined} shortcut={modifier === "⌘" ? "⌘K" : "Ctrl+K"} aria-label={query ? tf("搜索收藏：{query}，{count} 项筛选条件", { query, count: conditionCount }) : tf("搜索收藏，{count} 项筛选条件", { count: conditionCount })} onPress={openSearch} />
+          <SearchTrigger ref={searchRef} query={query} placeholder={t("搜索收藏…")} conditionLabel={conditionCount ? tf("筛选 {count}", { count: conditionCount }) : undefined} shortcut={[modifier, "K"]} aria-label={query ? tf("搜索收藏：{query}，{count} 项筛选条件", { query, count: conditionCount }) : tf("搜索收藏，{count} 项筛选条件", { count: conditionCount })} onPress={openSearch} />
         </header>
 
         <div className="collection-toolbar">

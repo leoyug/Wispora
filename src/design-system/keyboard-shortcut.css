@@ -1,0 +1,2 @@
+.keyboard-shortcut { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-small); color: var(--color-text); background: var(--color-shortcut-surface); font: 500 var(--text-label)/1 var(--font-interface); white-space: nowrap; }
+.keyboard-shortcut > span { display: inline-block; }
