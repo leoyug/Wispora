@@ -24,6 +24,7 @@ import { Switch } from "@/src/components/ui/Switch";
 import { useToast } from "@/src/components/ui/Toast";
 import { inspirationItems } from "@/src/data/demo";
 import type { LibrarySavedView } from "@/src/domain/inspiration";
+import { SearchPreview } from "./SearchPreview";
 
 const digestPreview = buildDigest("weekly", inspirationItems[0]!.createdAt, inspirationItems);
 
@@ -154,6 +155,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
             <div className="component-row">
               <Button variant="primary"><RiAddLine size={16} />添加链接</Button>
               <Button variant="secondary"><RiSettings3Line size={16} />管理标签</Button>
+              <Button variant="contrast">查看全部结果</Button>
               <Button variant="ghost">取消</Button>
               <Button variant="danger"><RiErrorWarningLine size={16} />删除</Button>
               <Button variant="primary" isDisabled>正在保存</Button>
@@ -169,6 +171,10 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
             </div>
             <SelectedTagBar tags={["设计", "React", "动效", "组件库", "可访问性"]} onRemove={() => undefined} actions={<div className="filter-result-actions"><Button variant="secondary" size="sm">保存为快捷视图</Button><Button variant="ghost" size="sm">清除全部</Button></div>} />
           </div>
+        </PreviewSection>
+
+        <PreviewSection title="搜索面板" description="Intent UI Command Menu 结构；受控输入、虚拟焦点、默认、结果、零结果、加载、失败和长内容状态共用当前主题。">
+          <SearchPreview />
         </PreviewSection>
 
         <PreviewSection title="侧栏导航" description="使用设计稿原始图标；系统视图固定，用户视图支持改名、删除和拖动排序。">

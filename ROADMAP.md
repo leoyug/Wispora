@@ -1,6 +1,6 @@
 # Wispora 产品开发路线图
 
-> 更新日期：2026-10-17
+> 更新日期：2026-10-27
 > 当前版本：`v0.7.2`
 > 当前阶段：收藏库视觉与交互细节收尾完成，进入 V1 发布验证
 
@@ -46,6 +46,7 @@ V1 的目标不是堆积功能，而是打通一个可靠的本地闭环：
 
 ### 当前限制
 
+- Command Search 一期已在 `codex/command-search` 分支实现并通过自动化检查与独立复核；二期的面板内筛选、搜索字段、最近记录及命中片段尚未实现。范围与运行验收分别见 `docs/design/command-search.md`、`docs/design/command-search-phase-one-validation.md`，本次不变更发布版本号。
 - 还没有使用 Playwright 持久化 Chromium Context 的真实 MV3 端到端测试。
 - 还未完成 Chrome/Edge 安装、权限、升级、可访问性与真实数据连续试用验收。
 - AI Provider 的实际兼容性依赖用户配置的 Endpoint 是否实现 OpenAI-compatible Chat Completions 协议。

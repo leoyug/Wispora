@@ -7,6 +7,7 @@ const buttonStyles = cva("button", {
   variants: {
     variant: {
       primary: "button-primary",
+      contrast: "button-contrast",
       secondary: "button-secondary",
       ghost: "button-ghost",
       danger: "button-danger",
