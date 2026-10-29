@@ -111,6 +111,10 @@ export class InspirationRepository {
     return this.database.snapshots.where("itemId").equals(itemId).first();
   }
 
+  async markOpened(itemId: string) {
+    await this.database.savedItems.update(itemId, { lastOpenedAt: Date.now() });
+  }
+
   async updateSavedItem(itemId: string, input: UpdateSavedItemInput) {
     const title = input.title.trim();
     if (!title) throw new Error("标题不能为空");

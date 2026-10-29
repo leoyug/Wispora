@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Label, Radio, RadioGroup as AriaRadioGroup, Text } from "react-aria-components";
 
 interface RadioOption<T extends string> {
   value: T;
   label: string;
   description?: string;
+  group?: string;
 }
 
 interface RadioGroupProps<T extends string> {
@@ -24,10 +25,13 @@ export function RadioGroup<T extends string>({ label, value, options, onChange, 
   return (
     <AriaRadioGroup className={className} orientation={orientation} value={value} onChange={(next) => onChange(next as T)}>
       <Label>{label}</Label>
-      {options.map((option) => (
-        <Radio key={option.value} value={option.value} className={renderOption ? "radio-option radio-option-custom" : "radio-option"}>
+      {options.map((option, index) => (
+        <Fragment key={option.value}>
+        {option.group && option.group !== options[index - 1]?.group ? <span className="radio-option-group" aria-hidden="true">{option.group}</span> : null}
+        <Radio value={option.value} className={renderOption ? "radio-option radio-option-custom" : "radio-option"}>
           {renderOption ? renderOption(option) : <><span className="radio-indicator" aria-hidden="true" /><span><strong>{option.label}</strong>{option.description ? <Text slot="description">{option.description}</Text> : null}</span></>}
         </Radio>
+        </Fragment>
       ))}
     </AriaRadioGroup>
   );

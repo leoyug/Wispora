@@ -12,6 +12,8 @@ import { SavedViewReorderList } from "@/src/components/layout/SavedViewReorderLi
 import { SidebarIcon } from "@/src/components/layout/SidebarIcon";
 import { SidebarNavItem } from "@/src/components/layout/SidebarNavItem";
 import { Badge } from "@/src/components/ui/Badge";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/ToggleGroup";
+import { Checkbox, CheckboxField, CheckboxGroup } from "@/src/components/ui/Checkbox";
 import { Button } from "@/src/components/ui/Button";
 import { Card } from "@/src/components/ui/Card";
 import { Field } from "@/src/components/ui/Field";
@@ -30,6 +32,7 @@ import { SearchPreview } from "./SearchPreview";
 const digestPreview = buildDigest("weekly", inspirationItems[0]!.createdAt, inspirationItems);
 
 const colors = [
+  { name: "勾选标记", token: "--color-checkbox-mark", value: "#FFFFFF" },
   { name: "页面背景", token: "--color-canvas", value: "#F4F1ED" },
   { name: "内容表面", token: "--color-surface", value: "#FFFFFF" },
   { name: "次级表面", token: "--color-surface-secondary", value: "#F6F5F4" },
@@ -39,6 +42,9 @@ const colors = [
   { name: "次级文字", token: "--color-text", value: "#525252" },
   { name: "三级文字", token: "--color-muted", value: "#707070" },
   { name: "品牌主色", token: "--color-brand", value: "#FF760E" },
+  { name: "主色文字", token: "--color-accent-ink", value: "#AB3A00" },
+  { name: "标签文字", token: "--color-tag-text", value: "#FF760E" },
+  { name: "搜索命中文字", token: "--color-search-match-text", value: "#AB3A00" },
   { name: "悬停主色", token: "--color-brand-hover", value: "#E96A08" },
   { name: "主色背景 10%", token: "--color-accent-primary-bg", value: "#FF760E · 10%" },
   { name: "主色描边 20%", token: "--color-accent-primary-border", value: "#FF760E · 20%" },
@@ -51,6 +57,9 @@ const colors = [
 ];
 
 const darkColorValues: Record<string, string> = {
+  "--color-accent-ink": "#FF931B",
+  "--color-tag-text": "#FF931B",
+  "--color-search-match-text": "#FF931B",
   "--color-canvas": "#121212",
   "--color-surface": "#181818",
   "--color-surface-secondary": "#202020",
@@ -84,6 +93,8 @@ function PreviewSection({ title, description, children }: { title: string; descr
 }
 
 export function DesignSystemPage({ onBack }: { onBack: () => void }) {
+  const [previewChipKeys, setPreviewChipKeys] = useState(new Set<string>(["title"]));
+  const [checkedFields, setCheckedFields] = useState<string[]>(["title"]);
   const [isDark, setIsDark] = useState(document.documentElement.dataset.theme === "dark");
   useEffect(() => {
     const observer = new MutationObserver(() => setIsDark(document.documentElement.dataset.theme === "dark"));
@@ -158,6 +169,8 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
               <Button variant="secondary"><RiSettings3Line size={16} />管理标签</Button>
               <Button variant="contrast">查看全部结果</Button>
               <Button variant="ghost">取消</Button>
+              <Button variant="preset">预设</Button>
+              <Button variant="preset" aria-current="true">当前预设</Button>
               <Button variant="danger"><RiErrorWarningLine size={16} />删除</Button>
               <Button variant="primary" isDisabled>正在保存</Button>
             </div>
@@ -174,7 +187,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           </div>
         </PreviewSection>
 
-        <PreviewSection title="搜索面板" description="Intent UI Command Menu 结构；受控输入、虚拟焦点、默认、结果、零结果、加载、失败和长内容状态共用当前主题。">
+        <PreviewSection title="搜索面板" description="Intent UI Command Menu；类型与收藏时间单选、标签及字段多选；默认记录、筛选与结果使用独立状态。">
           <SearchPreview />
           <div className="component-row" aria-label="快捷键提示"><KeyboardShortcut keys={["⌘", "K"]} /><KeyboardShortcut keys={["Esc"]} /><KeyboardShortcut keys={["⌘", "↵"]} /><KeyboardShortcut keys={["Ctrl", "K"]} /></div>
         </PreviewSection>
@@ -190,6 +203,17 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           </div>
         </PreviewSection>
 
+        <PreviewSection title="筛选胶囊" description="Intent UI Toggle Group；单选可取消，多选可组合，保留键盘焦点与禁用状态。">
+          <div className="component-stack">
+          <ToggleGroup label="搜索字段胶囊示例" selectionMode="multiple" selectedKeys={previewChipKeys} onSelectionChange={(keys) => setPreviewChipKeys(new Set([...keys].map(String)))}><ToggleGroupItem id="title">标题</ToggleGroupItem><ToggleGroupItem id="description">描述</ToggleGroupItem><ToggleGroupItem id="disabled" isDisabled>禁用选项</ToggleGroupItem></ToggleGroup>
+          <ToggleGroup label="横向标签胶囊示例" selectionMode="multiple" scrollable>{["组件库", "设计系统", "设计工具", "图标库", "个人网站", "交互动效", "开发资源", "排版参考", "网页设计", "资源导航"].map((name) => <ToggleGroupItem key={name} id={name}>#{name}</ToggleGroupItem>)}</ToggleGroup>
+          <div className="component-row">{[...previewChipKeys].map((key) => <Badge key={key} variant="choice" removable onPress={() => setPreviewChipKeys((current) => new Set([...current].filter((value) => value !== key)))} aria-label={`移除示例 ${key === "title" ? "标题" : "描述"}`}>{key === "title" ? "标题" : "描述"}</Badge>)}</div>
+          </div>
+        </PreviewSection>
+
+        <PreviewSection title="多选选项" description="Intent UI Checkbox Group；覆盖选中、未选、禁用、键盘焦点及错误状态。">
+          <div className="component-stack"><CheckboxGroup label="搜索字段示例" value={checkedFields} onChange={setCheckedFields} description="可同时选择多个字段"><div className="checkbox-group-options"><CheckboxField value="title"><Checkbox>标题</Checkbox></CheckboxField><CheckboxField value="description"><Checkbox>描述</Checkbox></CheckboxField><CheckboxField value="partial" isIndeterminate><Checkbox>部分选择</Checkbox></CheckboxField><CheckboxField value="domain" isDisabled><Checkbox>域名（禁用）</Checkbox></CheckboxField></div></CheckboxGroup><CheckboxGroup label="需要选择至少一项" isInvalid value={[]}><CheckboxField value="example"><Checkbox>错误状态</Checkbox></CheckboxField></CheckboxGroup></div>
+        </PreviewSection>
         <PreviewSection title="表单" description="输入、搜索与描述共享焦点、圆角和表面规范。">
           <div className="form-preview">
             <Field label="名称" defaultValue="Intent UI" />

@@ -14,6 +14,7 @@ interface CommandMenuProps extends Pick<AutocompleteProps, "inputValue" | "onInp
   children: ReactNode;
   isOpen: boolean;
   isPending?: boolean;
+  heightMode?: "stable" | "content";
   onOpenChange: (open: boolean) => void;
   "aria-label": string;
   onKeyDownCapture?: KeyboardEventHandler<HTMLElement>;
@@ -21,11 +22,11 @@ interface CommandMenuProps extends Pick<AutocompleteProps, "inputValue" | "onInp
 
 const CommandContext = createContext({ isPending: false });
 
-export function CommandMenu({ children, isOpen, isPending = false, onOpenChange, "aria-label": label, onKeyDownCapture, ...props }: CommandMenuProps) {
+export function CommandMenu({ children, isOpen, isPending = false, heightMode = "content", onOpenChange, "aria-label": label, onKeyDownCapture, ...props }: CommandMenuProps) {
   return (
     <CommandContext.Provider value={{ isPending }}>
       <ModalOverlay className="detail-overlay command-menu-overlay" isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
-        <Modal className="command-menu-modal">
+        <Modal className="command-menu-modal" data-height-mode={heightMode}>
           <Dialog className="command-menu-dialog" aria-label={label}>
             <div className="command-menu-content" onKeyDownCapture={onKeyDownCapture}><Autocomplete {...props}>{children}</Autocomplete></div>
           </Dialog>
@@ -43,15 +44,17 @@ interface CommandMenuSearchProps {
   inputRef?: Ref<HTMLInputElement>;
   onCompositionStart?: ComponentProps<typeof SearchInput>["onCompositionStart"];
   onCompositionEnd?: ComponentProps<typeof SearchInput>["onCompositionEnd"];
+  actions?: ReactNode;
 }
 
-export function CommandMenuSearch({ label, placeholder, clearLabel, onClear, inputRef, onCompositionStart, onCompositionEnd }: CommandMenuSearchProps) {
+export function CommandMenuSearch({ label, placeholder, clearLabel, onClear, inputRef, onCompositionStart, onCompositionEnd, actions }: CommandMenuSearchProps) {
   const state = useContext(AutocompleteStateContext);
   return (
     <SearchField className="command-menu-search" aria-label={label} autoFocus>
-      <RiSearchLine size={22} aria-hidden="true" />
+      <RiSearchLine size={20} aria-hidden="true" />
       <SearchInput ref={inputRef} placeholder={placeholder} autoComplete="off" spellCheck={false} onCompositionStart={onCompositionStart} onCompositionEnd={onCompositionEnd} />
-      {state?.inputValue ? <Button variant="ghost" size="icon" aria-label={clearLabel} onPress={onClear}><RiCloseLine size={17} /></Button> : null}
+      {state?.inputValue ? <Button slot={null} variant="ghost" size="icon" aria-label={clearLabel} onPress={onClear}><RiCloseLine size={17} /></Button> : null}
+      {actions}
     </SearchField>
   );
 }
@@ -93,7 +96,23 @@ const renderer: CollectionRenderer = {
       return () => list.removeEventListener("pointermove", focusPointerItem);
     }, [state, isPending, props.scrollRef]);
     useEffect(() => {
+      const input = props.scrollRef?.current?.closest(".command-menu-content")?.querySelector<HTMLInputElement>(".command-menu-search input");
+      if (!input || !state || isPending) return;
+      const restoreOnInputFocus = () => queueMicrotask(() => {
+        if (document.activeElement !== input || !state.collection.size) return;
+        const key = preferredFocusId && state.collection.getItem(preferredFocusId) ? preferredFocusId : state.collection.getFirstKey();
+        state.selectionManager.setFocused(true);
+        state.selectionManager.setFocusedKey(key);
+      });
+      input.addEventListener("focus", restoreOnInputFocus);
+      return () => input.removeEventListener("focus", restoreOnInputFocus);
+    }, [state, isPending, preferredFocusId, props.scrollRef]);
+    useEffect(() => {
       if (state && !isPending && restored.current !== focusRequest && state.collection.size) {
+        const input = props.scrollRef?.current?.closest(".command-menu-content")?.querySelector(".command-menu-search input");
+        // Updating results while the user edits a radio or a tag popover must
+        // not pull virtual focus back to the list or scroll its parent away.
+        if (input && input !== document.activeElement) return;
         const key = preferredFocusId && state.collection.getItem(preferredFocusId) ? preferredFocusId : state.collection.getFirstKey();
         // Wait for Autocomplete to attach its virtual-focus listener to the list.
         const frame = requestAnimationFrame(() => {
@@ -103,7 +122,7 @@ const renderer: CollectionRenderer = {
         });
         return () => cancelAnimationFrame(frame);
       }
-    }, [state, isPending, preferredFocusId, focusRequest]);
+    }, [state, isPending, preferredFocusId, focusRequest, props.scrollRef]);
     const focusedKey = state?.selectionManager.focusedKey;
     useEffect(() => {
       if (focusedKey != null) onActiveChange?.(String(focusedKey));

@@ -1,6 +1,6 @@
 # Wispora 产品开发路线图
 
-> 更新日期：2026-10-27
+> 更新日期：2026-10-29
 > 当前版本：`v0.7.2`
 > 当前阶段：收藏库视觉与交互细节收尾完成，进入 V1 发布验证
 
@@ -46,7 +46,11 @@ V1 的目标不是堆积功能，而是打通一个可靠的本地闭环：
 
 ### 当前限制
 
-- Command Search 一期已在 `codex/command-search` 分支实现并通过自动化检查与独立复核；二期的面板内筛选、搜索字段、最近记录及命中片段尚未实现。范围与运行验收分别见 `docs/design/command-search.md`、`docs/design/command-search-phase-one-validation.md`，本次不变更发布版本号。
+- 2026-10-29 搜索二期收尾：默认记录页与筛选页统一为 480px 默认高度，视口不足时同步收缩；小标题距输入分割线 16px。筛选页增加独立取消／确定流程及固定底栏，结果条件使用中性可移除胶囊，删除图标保留悬停反馈。选项统一 4px／12px 内边距及 12px 间距；时间范围改为包含今天的过去 7 天，兼容原 `week` URL／历史键。深色选中文字、标签与搜索命中统一复用更饱和的橙色 token，设计系统已同步。最终 `pnpm check` 通过 19 文件 116 项测试、类型检查及生产构建；纽约时区搜索日期测试 33 项通过，本轮浏览器 23＋6 项断言及独立复核通过，测试进程已清理。当前规格与历史证据见[搜索方案](docs/design/command-search.md)；保持版本 `0.7.2`，不替代完整 MV3 发布验收。
+
+- 2026-10-28 八点截图反馈已实现并同步当前规格：移除闲置提示与搜索内快捷视图，保留类型、时间、标签、字段四组；标题和组名加粗，字段说明紧随标题；搜索标签候选及对应条件显示 #，不改标签数据。选项与 Badge choice 共用 13px 胶囊和卡片标签色，选中无描边；标签滚动使用共享 ScrollArea 原生视口、4px DOM 滑块／12px 指针轨道，闲置不绘制，保留滚动与拖动；底栏桌面 64px／窄屏 68px。本轮最终 pnpm check 通过 19 文件 111 测试及生产构建，31＋5＋8 合计 44 条浏览器成功断言、0 页面异常；首次完整复核仅要求修正滚动条绘制，后续该单项获 Resolved／ship，测试浏览器与开发进程均退出。证据见[八点反馈记录](docs/design/command-search-feedback-2026-10-28.md)，不与上一轮 70 条主验收混加。
+
+- 上一轮 Command Search 一、二期及 2026-10-28 Figma 三态细化已在 `codex/command-search` 分支实现。最新参考节点 `6527:69 / 6534:96 / 6536:224` 将面板调整为默认记录 → 独立筛选 → 带可移除条件的结果；宽 `708px`、灰色外框、`16px` 输入、桌面 `56px` 输入栏及 `48px` 结果底栏，筛选页不显示结果或底栏。类型、时间使用可取消单选胶囊，标签恢复为精确 ID 多选 AND，五字段多选 OR、未限定即全部；搜索内快捷视图应用范围和标签，保留词、时间与字段。URL 和最近搜索恢复完整可见条件；草稿、预览、取消及显式提交边界保留。共享 Checkbox 的灰边、实心品牌橙、白色勾线及原动画供其他消费者继续使用。当前代码 `pnpm check` 通过 19 个文件共 111 项测试及生产构建，本轮 Playwright 三组 40＋18＋12 合计 70 条成功断言、0 页面异常，几何修正另有 7 条补验；首次整体复核只要求修正胶囊半圆端部，修正后该项获 `Resolved / ship`，属于单项修正复核；测试浏览器与开发进程已退出，详情见[Figma 细化记录](docs/design/command-search-figma-2026-10-28.md)。先前 106／45、106／33、104／21、104／46 等数字仅属于各历史记录，不累加。当前规格见[搜索栏优化方案](docs/design/command-search.md)，[复选框校正](docs/design/command-search-checkbox-2026-10-28.md)、[视觉细化](docs/design/command-search-visual-2026-10-28.md)、[交互梳理](docs/design/command-search-interaction-2026-10-28.md)、[精确标签简化](docs/design/command-search-tag-simplification-2026-10-28.md)、[首次修订](docs/design/command-search-refinement-2026-10-28.md)与[二期](docs/design/command-search-phase-two-validation.md)保留历史事实。版本仍为 `0.7.2`；实际系统输入法、屏幕阅读器、浏览器 200% 缩放及完整 Chrome/Edge MV3 发布验收仍待人工完成。
 - 还没有使用 Playwright 持久化 Chromium Context 的真实 MV3 端到端测试。
 - 还未完成 Chrome/Edge 安装、权限、升级、可访问性与真实数据连续试用验收。
 - AI Provider 的实际兼容性依赖用户配置的 Endpoint 是否实现 OpenAI-compatible Chat Completions 协议。

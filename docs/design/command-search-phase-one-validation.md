@@ -4,6 +4,8 @@
 分支：`codex/command-search`\
 方案：[搜索栏优化方案](command-search.md)
 
+本页保留一期交付时的历史记录；其下“二期待实现”描述仅代表当时边界。二期现已实现，当前运行截图、自动化结果与人工待验项见[二期实现与验收记录](command-search-phase-two-validation.md)。
+
 ## 已实现
 
 - 顶部胶囊入口、平台快捷键及已生效的关键词 / 筛选数量。

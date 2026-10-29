@@ -10,6 +10,8 @@ const buttonStyles = cva("button", {
       contrast: "button-contrast",
       secondary: "button-secondary",
       ghost: "button-ghost",
+      preset: "button-preset",
+      choice: "choice-chip",
       danger: "button-danger",
       dangerGhost: "button-danger-ghost",
     },
