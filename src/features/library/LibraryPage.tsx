@@ -1,9 +1,9 @@
-import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDeleteBinLine, RiEditLine, RiExternalLinkLine, RiFileCopyLine, RiFunctionLine, RiListCheck, RiListCheck2, RiListUnordered, RiPriceTag3Line, RiSearchLine, RiSparkling2Line, RiTextSnippet } from "@remixicon/react";
+import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDeleteBinLine, RiEditLine, RiExternalLinkLine, RiFileCopyLine, RiPriceTag3Line, RiSparkling2Line, RiTextSnippet } from "@remixicon/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FloatingAddMenu } from "@/src/components/inspiration/FloatingAddMenu";
 import type { ExtensionRequest } from "@/src/capture/types";
-import { InspirationCard, type InspirationLayout } from "@/src/components/inspiration/InspirationCard";
+import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
 import { AppShell } from "@/src/components/layout/AppShell";
 import { Badge } from "@/src/components/ui/Badge";
@@ -11,13 +11,14 @@ import { Button } from "@/src/components/ui/Button";
 import { SearchTrigger } from "@/src/components/ui/SearchTrigger";
 import { ContextMenu, type ContextMenuAction } from "@/src/components/ui/ContextMenu";
 import { FacetFilter } from "@/src/components/ui/FacetFilter";
-import { SegmentedControl } from "@/src/components/ui/SegmentedControl";
+import { LibraryLayoutSelect, type LibraryLayoutMode } from "@/src/components/inspiration/LibraryLayoutSelect";
 import { SelectMenu } from "@/src/components/ui/SelectMenu";
 import { SelectedTagBar } from "@/src/components/ui/SelectedTagBar";
 import { useToast } from "@/src/components/ui/Toast";
 import { seedDevelopmentData } from "@/src/db/developmentSeed";
 import { inspirationRepository, type DeletedSavedItem } from "@/src/db/repository";
 import { type LibraryItem, type LibraryScope, type SavedItemKind, type UpdateSavedItemInput } from "@/src/domain/inspiration";
+import { isSavedItemProcessed } from "@/src/domain/inspiration";
 import { getAdjacentSearchPreviewId, createSearchPresentations, createLibrarySearchIndex, queryLibraryItems, type LibrarySortOrder } from "@/src/search/librarySearch";
 import { readSearchFields, readSearchScope, readSearchTimeRange, searchConditionCount, searchFieldLabels, searchTimeLabels, type LibraryQuery } from "@/src/search/searchQuery";
 import { searchHistoryRepository } from "@/src/search/searchHistory";
@@ -31,10 +32,10 @@ import { DetailDialog } from "./DetailDialog";
 import { ImportDialog } from "./ImportDialog";
 import { TagManagerDialog } from "./TagManagerDialog";
 import { LibrarySkeleton } from "./LibrarySkeleton";
+import { LibraryEmptyState } from "./LibraryEmptyState";
 import { LibrarySearchDialog, type SearchPosition, type SearchDraft } from "./LibrarySearchDialog";
 import { t, tf } from "@/src/i18n/ui";
 
-type LayoutMode = InspirationLayout | "compact-list";
 type SortOrder = LibrarySortOrder;
 interface SearchSession extends SearchDraft {
   mode: "search" | "preview";
@@ -43,12 +44,6 @@ interface SearchSession extends SearchDraft {
 }
 const emptyItems: LibraryItem[] = [];
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
-const layoutOptions = [
-  { value: "cards", label: "详情卡片", icon: <RiFunctionLine size={15} aria-hidden="true" /> },
-  { value: "compact", label: "紧凑卡片", icon: <RiListCheck2 size={15} aria-hidden="true" /> },
-  { value: "list", label: "详情列表", icon: <RiListCheck size={15} aria-hidden="true" /> },
-  { value: "compact-list", label: "紧凑列表", icon: <RiListUnordered size={15} aria-hidden="true" /> },
-] as const;
 const sortOptions = [
   { value: "newest", label: "最新" },
   { value: "oldest", label: "最旧" },
@@ -88,7 +83,7 @@ export function LibraryPage() {
   const [query, setQuery] = useState(initialState.query);
   const [selectedTags, setSelectedTags] = useState<string[]>(initialState.tags);
   const [sortOrder, setSortOrder] = useState<SortOrder>(initialState.sort);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialState.layout);
+  const [layoutMode, setLayoutMode] = useState<LibraryLayoutMode>(initialState.layout);
   const [selectedId, setSelectedId] = useState<string | null>(initialState.item);
   const [importKind, setImportKind] = useState<SavedItemKind | null>(null);
   const [bookmarkImportOpen, setBookmarkImportOpen] = useState(false);
@@ -105,6 +100,7 @@ export function LibraryPage() {
   const searchScrollRef = useRef(0);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const detailScrollRef = useRef(0);
+  const hydratedSavedViewRef = useRef<string | null>(null);
 
   useEffect(() => {
     // URL 同步 effect 会在挂载后重写地址栏，必须在它之前同步读取 seed 参数
@@ -116,6 +112,22 @@ export function LibraryPage() {
     if (!liveTags) return;
     setSelectedTags((current) => current.some((id) => id.startsWith("legacy-tag:")) ? current.map((id) => id.startsWith("legacy-tag:") ? liveTags.find((tag) => tag.name === id.slice(11))?.id ?? id : id) : current);
   }, [liveTags]);
+
+  useEffect(() => {
+    if (!activeSavedView) {
+      hydratedSavedViewRef.current = null;
+      return;
+    }
+    if (!liveViews || hydratedSavedViewRef.current === activeSavedView) return;
+    const view = liveViews.find((candidate) => candidate.id === activeSavedView);
+    if (!view) {
+      setActiveSavedView(null);
+      return;
+    }
+    hydratedSavedViewRef.current = activeSavedView;
+    setActiveScope(view.scope);
+    setSelectedTags(view.tagIds);
+  }, [liveViews, activeSavedView]);
 
   useEffect(() => {
     // Resolve old tag-name links before emitting canonical ID parameters.
@@ -148,6 +160,9 @@ export function LibraryPage() {
     try { return queryLibraryItems(items, searchIndex, { query, scope: activeScope, tagIds: effectiveTags, fields: selectedSearchFields, timeRange: selectedSearchTime, sort: sortOrder }); }
     catch { return []; }
   }, [activeScope, effectiveTags, items, query, searchIndex, selectedSearchFields, selectedSearchTime, sortOrder]);
+  const hasLibraryItems = items.some((item) => !item.archivedAt);
+  const hasScopeItems = items.some((item) => !item.archivedAt && (activeScope === "all" || (activeScope === "favorites" ? item.isFavorite : activeScope === "unprocessed" ? !isSavedItemProcessed(item) : item.kind === activeScope)));
+  const emptyStateKind = !hasLibraryItems ? "library" : !hasScopeItems ? "scope" : !searchIndex && query.trim() ? "search-unavailable" : "filtered";
   const draftScope = searchSession?.scope ?? activeScope;
   const draftFields = searchSession?.fields ?? selectedSearchFields;
   const draftTags = searchSession?.tagIds ?? effectiveTags;
@@ -217,6 +232,7 @@ export function LibraryPage() {
   const changeScope = (scope: LibraryScope) => { setActiveScope(scope); setActiveSavedView(null); resetBrowseControls(); };
   const changeSavedView = (id: string) => {
     const view = views.find((candidate) => candidate.id === id);
+    hydratedSavedViewRef.current = id;
     setActiveSavedView(id);
     setActiveScope(view?.scope ?? "all");
     setSelectedTags(view?.tagIds ?? []);
@@ -236,6 +252,7 @@ export function LibraryPage() {
   };
   const createSavedView = async () => {
     const view = await inspirationRepository.createSavedView({ name: t("新快捷视图"), scope: activeScope, tags: selectedTags.map(tagName) });
+    hydratedSavedViewRef.current = view.id;
     setActiveSavedView(view.id);
     showToast(t("快捷视图已保存"), { tone: "success" });
   };
@@ -390,7 +407,18 @@ export function LibraryPage() {
     return result;
   }
 
-  const clearConditions = () => { setSearchTime("all"); setSearchFields(["all"]); setQuery(""); setSelectedTags([]); setSortOrder("newest"); setActiveSavedView(null); };
+  const clearConditions = () => {
+    setSearchTime("all");
+    setSearchFields(["all"]);
+    setQuery("");
+    setSelectedTags([]);
+    setSortOrder("newest");
+    setActiveSavedView(null);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0 });
+      searchRef.current?.focus({ preventScroll: true });
+    });
+  };
   const removeTag = (tag: string) => { setSelectedTags((current) => current.filter((value) => value !== tag)); setActiveSavedView(null); };
   const contextItem = contextMenu ? items.find((item) => item.id === contextMenu.itemId) ?? null : null;
   const openItemContextMenu = (event: React.MouseEvent<HTMLElement>, itemId: string) => {
@@ -425,18 +453,22 @@ export function LibraryPage() {
         <div className="collection-toolbar">
           <div className="toolbar-main-row">
             <div className="toolbar-left">
-              <div className="view-heading"><strong>{viewTitle}</strong><span>{visibleItems.length}</span></div>
+              <div className="view-heading"><h1>{viewTitle}</h1><span aria-label={tf("{count} 个收藏项", { count: visibleItems.length })}>{visibleItems.length}</span></div>
               <div className="facet-filter-bar" aria-label={t("内容筛选")}>
                 <FacetFilter label={t("标签")} icon={<RiPriceTag3Line size={15} aria-hidden="true" />} options={allTags.map((tag) => ({ id: tag.id, label: tag.name, count: tag.usageCount }))} selectedValues={selectedTags} onChange={(values) => { setSelectedTags(values); setActiveSavedView(null); }} searchable searchPlaceholder={t("搜索标签")} />
               </div>
             </div>
             <div className="toolbar-right">
               <SelectMenu<SortOrder> label={t("排序方式")} value={!query.trim() && sortOrder === "relevance" ? "newest" : sortOrder} options={(query.trim() ? [relevanceOption, ...sortOptions] : sortOptions).map((option) => ({ ...option, label: t(option.label) }))} onChange={setSortOrder} icon={<RiArrowUpDownLine size={15} aria-hidden="true" />} className="sort-control" />
-              <SegmentedControl label={t("排列样式")} value={layoutMode} options={layoutOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setLayoutMode} className="layout-switch" />
+              <LibraryLayoutSelect value={layoutMode} onChange={setLayoutMode} />
             </div>
           </div>
-          {selectedSearchTime !== "all" ? <div className="library-search-field-condition"><Badge variant="neutral" size="sm" removable onPress={() => setSearchTime("all")} aria-label={tf("移除条件 {name}", { name: t(searchTimeLabels[selectedSearchTime]) })}>{t(searchTimeLabels[selectedSearchTime])}</Badge></div> : null}
-          {!selectedSearchFields.includes("all") ? <div className="library-search-field-condition">{selectedSearchFields.map((field) => <Badge key={field} variant="neutral" size="sm" removable onPress={() => setSearchFields(readSearchFields(selectedSearchFields.filter((value) => value !== field)))} aria-label={tf("移除搜索字段 {name}", { name: t(searchFieldLabels[field]) })}>{t(searchFieldLabels[field])}</Badge>)}</div> : null}
+          {selectedSearchTime !== "all" || !selectedSearchFields.includes("all") ? (
+            <div className="library-search-field-condition" aria-label={t("筛选条件")}>
+              {selectedSearchTime !== "all" ? <Badge variant="neutral" size="sm" removable onPress={() => setSearchTime("all")} aria-label={tf("移除条件 {name}", { name: t(searchTimeLabels[selectedSearchTime]) })}>{t(searchTimeLabels[selectedSearchTime])}</Badge> : null}
+              {!selectedSearchFields.includes("all") ? selectedSearchFields.map((field) => <Badge key={field} variant="neutral" size="sm" removable onPress={() => setSearchFields(readSearchFields(selectedSearchFields.filter((value) => value !== field)))} aria-label={tf("移除搜索字段 {name}", { name: t(searchFieldLabels[field]) })}>{t(searchFieldLabels[field])}</Badge>) : null}
+            </div>
+          ) : null}
           {selectedTags.length ? <SelectedTagBar tags={selectedTags} getLabel={tagName} onRemove={removeTag} actions={<div className="filter-result-actions"><Button variant="secondary" size="sm" onPress={createSavedView}>{t("保存为快捷视图")}</Button>{query.trim() || !selectedSearchFields.includes("all") || selectedSearchTime !== "all" ? <span className="search-filter-help">{t("仅保存范围和标签")}</span> : null}<Button variant="ghost" size="sm" onPress={clearConditions}>{t("清除全部")}</Button></div>} /> : null}
         </div>
 
@@ -444,7 +476,16 @@ export function LibraryPage() {
           {liveItems === undefined ? <span className="sr-only">{t("正在打开本地收藏库")}</span> : null}
           <div className="t-skel-skeleton is-pulsing"><LibrarySkeleton /></div>
           <div className="t-skel-content">
-            {liveItems !== undefined ? !searchIndex && query.trim() ? <div className="empty-state"><h2>{t("本地搜索暂时不可用")}</h2><Button variant="secondary" onPress={clearConditions}>{t("返回浏览")}</Button></div> : visibleItems.length ? (layoutMode === "list" || layoutMode === "compact-list") ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} variant={layoutMode === "compact-list" ? "compact" : "detail"} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : items.length === 0 ? <div className="empty-state"><div className="empty-mark"><RiPriceTag3Line size={22} /></div><h2>{t("建立你的第一个收藏项")}</h2><p>{t("添加网站、文章或关注源，刷新页面后它仍会留在这里。")}</p><Button variant="primary" onPress={() => setImportKind("website")}>{t("添加网站")}</Button></div> : <div className="empty-state"><div className="empty-mark"><RiSearchLine size={22} /></div><h2>{t("没有匹配的内容")}</h2><p>{t("调整筛选条件，或换一个搜索关键词后再试。")}</p><Button variant="secondary" onPress={clearConditions}>{t("清除筛选")}</Button></div> : null}
+            {liveItems !== undefined ? visibleItems.length ? (layoutMode === "list" || layoutMode === "compact-list") ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} variant={layoutMode === "compact-list" ? "compact" : "detail"} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <LibraryEmptyState
+              kind={emptyStateKind}
+              scope={activeScope}
+              scopeTitle={viewTitle}
+              onAdd={() => setImportKind(emptyStateKind !== "library" && (activeScope === "article" || activeScope === "follow") ? activeScope : "website")}
+              onImport={() => setBookmarkImportOpen(true)}
+              onShowAll={() => { clearConditions(); changeScope("all"); }}
+              onClear={clearConditions}
+              onSearch={openSearch}
+            /> : null}
           </div>
         </div>
       </div>
