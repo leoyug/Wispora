@@ -21,7 +21,9 @@ html[data-theme="dark"] {
   --color-faint: #929292;
   --color-copyright: #888888;
   --color-accent-soft: #38271c;
-  --color-tag-text: #ffae70;
+  --color-accent-ink: #ff931b;
+  --color-search-match-text: var(--color-accent-ink);
+  --color-tag-text: var(--color-accent-ink);
   --color-tag-surface: #38271c;
   --color-tag-surface-hover: #50321f;
   --color-shortcut-text: #aaaab1;
@@ -66,7 +68,9 @@ html[data-theme="dark"] {
     --color-faint: color(display-p3 0.57255 0.57255 0.57255);
     --color-copyright: color(display-p3 0.53333 0.53333 0.53333);
     --color-accent-soft: color(display-p3 0.21961 0.15294 0.1098);
-    --color-tag-text: color(display-p3 1 0.68235 0.43922);
+    --color-accent-ink: color(display-p3 1 0.6 0.25);
+    --color-search-match-text: var(--color-accent-ink);
+    --color-tag-text: var(--color-accent-ink);
     --color-tag-surface: color(display-p3 0.21961 0.15294 0.1098);
     --color-tag-surface-hover: color(display-p3 0.31373 0.19608 0.12157);
     --color-shortcut-text: color(display-p3 0.66667 0.66667 0.69412);
@@ -89,7 +93,7 @@ html[data-theme="dark"] {
 
 html[data-theme="dark"] .saved-view-editor input { background: var(--color-surface-subtle); }
 html[data-theme="dark"] .library-search { background: var(--color-surface); }
-html[data-theme="dark"] .library-search:not(:focus-within) { box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
+html[data-theme="dark"] .library-search:not(.search-trigger):not(:focus-within) { box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
 html[data-theme="dark"] .floating-menu-panel { background: var(--color-surface-glass); }
 html[data-theme="dark"] .design-system-header { background: var(--color-surface-glass); }
 

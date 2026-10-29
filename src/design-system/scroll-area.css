@@ -1,0 +1,12 @@
+.scroll-area { position: relative; min-width: 0; min-height: 0; }
+.scroll-area-viewport { min-width: 0; min-height: 0; max-height: inherit; overflow: auto; overscroll-behavior: contain; }
+.scroll-area[data-orientation="vertical"] > .scroll-area-viewport { overflow-x: hidden; }
+.scroll-area[data-orientation="horizontal"] > .scroll-area-viewport { overflow-y: hidden; scrollbar-width: none; }
+.scroll-area[data-orientation="horizontal"] > .scroll-area-viewport::-webkit-scrollbar { display: none; }
+.scroll-area[data-has-overflow-x] { padding-bottom: 8px; }
+.scroll-area-scrollbar { position: absolute; inset: auto 0 -2px; height: 12px; display: flex; align-items: center; opacity: 0; pointer-events: none; cursor: pointer; touch-action: none; }
+.scroll-area-thumb { flex: 0 0 auto; height: 4px; border-radius: var(--radius-pill); corner-shape: round; background: var(--color-scrollbar-thumb); }
+.scroll-area:hover > .scroll-area-scrollbar, .toggle-field:hover .scroll-area-scrollbar, .scroll-area:has([data-focus-visible], :focus-visible) .scroll-area-scrollbar, .scroll-area-scrollbar[data-dragging] { opacity: 1; pointer-events: auto; }
+.scroll-area-scrollbar:hover .scroll-area-thumb { background: var(--color-scrollbar-thumb-hover); }
+.scroll-area-scrollbar[data-dragging] .scroll-area-thumb { background: var(--color-scrollbar-thumb-active); }
+@media (forced-colors: active) { .scroll-area-thumb { background: ButtonText; } }

@@ -33,6 +33,17 @@ afterEach(async () => {
 });
 
 describe("InspirationRepository", () => {
+  it("records real detail opens without changing the saved or edited timestamp", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const { item } = await repository.createSavedItem({ kind: "article", url: "https://example.com/recent" });
+    expect(item.lastOpenedAt).toBeUndefined();
+    await repository.markOpened(item.id);
+    const opened = await database.savedItems.get(item.id);
+    expect(opened?.lastOpenedAt).toBeGreaterThanOrEqual(item.createdAt);
+    expect(opened?.updatedAt).toBe(item.updatedAt);
+    database.close();
+  });
   it("deduplicates normalized URLs within the same content type", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);

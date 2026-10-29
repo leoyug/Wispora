@@ -75,10 +75,13 @@ Intent UI 当前 registry 是共享 UI 组件的首选结构来源。组件通�
 | `Modal` / `Dialog` | Modal / Dialog | 统一遮罩、焦点陷阱、关闭恢复与详情状态机 |
 | `Switch` | Switch | 使用 `SwitchField + SwitchButton`，覆盖开关、焦点和禁用态 |
 | `RadioGroup` | Radio Group | 用于互斥选项，不用 checkbox 或 Switch 代替 |
+| `CheckboxGroup` / `CheckboxField` / `Checkbox` | Checkbox | 沿用当前 registry 的 Group → Field → Button 分层、slot 与受控多选；通过 CheckboxIndicator 复用既有 FacetFilter 的 16px 形状与勾线，状态使用语义 token |
 | `SegmentedControl` | Toggle Group | 使用单选 `ToggleButtonGroup` 表达布局和模式切换 |
 | `Badge` | Badge | 使用无 `#` 前缀的标签名称和标签语义色 |
 | `Card` | Card | 作为无业务语义的基础表面，领域卡片另行组合 |
 | `FacetFilter` | Popover + Search Field + Checkbox | 保留多选筛选、数量和清除操作 |
+| `ToggleGroup` | Toggle Group | 2026-10-28 从 Intent UI 当前 registry 复制结构；搜索类型、时间及字段使用胶囊单选或多选，`FacetFilter` 的 inline 形式复用它 |
+| `ScrollArea` | Scroll Area | 从 Intent UI 当前 registry 复制 wrapper／native viewport、方向、溢出标记与 rAF／ResizeObserver；横向扩展 DOM 滑块和既有 pointer-capture 拖动，ToggleGroup 可滚动形式复用 |
 | 侧栏设置入口 | Menu | 锚定在侧栏设置按钮上方，具体任务再打开对应 Modal |
 | `TagInput` | Combo Box + Tag Group 的专用组合 | 保留 Shadow Root Portal、视口定位、创建标签和滚动隔离，暂不直接替换为普通 ComboBox |
 
@@ -145,16 +148,23 @@ V1 先使用默认存储配额，通过 `navigator.storage.estimate()` 监测使
 
 ### 4.3 搜索索引
 
-MiniSearch 索引可以从 Dexie 重建，不是业务数据源。建议权重：
-
-1. 名称。
-2. 标签、内容类型和域名。
-3. 描述。
-4. 正文快照。
+MiniSearch 索引可以从 Dexie 重建，不是业务数据源。已实现字段权重为标题 5、标签 4、最终描述 3、域名 2、正文快照 1；内容类型由单一范围值精确过滤，不作为全文字段。
 
 中文文本使用 `Intl.Segmenter("zh-CN", { granularity: "word" })` 自定义 MiniSearch tokenizer；英文保留小写化、前缀搜索和低度模糊匹配。
 
 数据规模较大后，可将索引构建放入 Web Worker，不阻塞卡片页面。
+
+`LibraryQuery` 统一关键词、单一范围、稳定标签 ID、`fields[]` 与可选 `timeRange`；搜索面板 `SearchDraft` 使用同一完整查询，并追加当前快捷视图、筛选页状态和立即查询版本。共用 `queryLibraryItems` 的字段并集、多词 AND、精确标签 AND、归档排除与相关性规则。`readSearchFields` 在 URL／历史边界把旧 `title-description` 展开为 `title` 和 `description`，按标题、描述、标签、域名、快照正文规范排序；空选择、无效输入或五项齐全统一为 `["all"]`。UI 中全部字段表现为五项均未限定，并明确说明默认搜索全部，不再设置字段预设或最后一项禁用。关键词提交默认最相关；URL 使用 `q / scope / tagId / field / time`，字段可重复，旧单一 `field` 与 `tag=名称` 链接可读。工作台条件数量计实际限定字段、精确标签及一个非默认时间，不计范围；面板结果页另显示可移除条件，筛选页不重复摘要。
+
+搜索面板通过共享 Intent UI Command Menu 适配层实现 Autocomplete 的受控输入、虚拟焦点和可访问结果列表；外部 MiniSearch 负责匹配，不按标题二次过滤描述或正文命中。筛选只含类型、时间、标签和字段四组；类型、时间与字段使用 Intent UI 适配的共享 `ToggleGroup / ToggleGroupItem`，标签使用 `FacetFilter presentation="inline"`。可移除条件使用 `Badge variant="choice"`，与选项共用 choice-chip 几何；默认使用 muted／surface-secondary／0.5px 内描边，编辑控件选中使用 accent-soft／accent-ink 并去除描边，结果条件保持中性灰色且删除图标提供独立悬停反馈。选择与条件统一 `13px / 400 / 20px`、`4px 12px` 内边距、`12px` 间距、round 和 28／44px 最小高度。业务层不直接导入 React Aria。类型和时间为可取消单选，字段和精确标签为多选；没有额外标签浮层、候选计数查询或 Portal。原 Checkbox、Popover FacetFilter 的灰边、橙框、白色勾线与动画不变。输入查询防抖 200ms，结果绑定当前查询与索引版本，显式提交可立即执行排队查询；前 8 条按需提取命中片段，使用 React 文本与 mark，不拼接 HTML。
+
+筛选标题是 `h2`；最近记录、筛选标题、条件摘要和结果统计统一为 12px／16px／600／text，首个小标题距输入分割线 16px，组名为 12px／400。“未限定时搜索全部字段”在标题后内联，以 12px／400／muted 呈现，并通过字段 ToggleGroup 的 aria-describedby 关联。正常默认页不渲染闲置提示状态行，加载、更新、失败和结果计数仍保留。精确标签候选与对应条件只在搜索展示层添加 `#`，存储、ID、其他页面及字段名称不变。标签横向滚动使用共享 ScrollArea：隐藏原生横向滚动条，保留原生 viewport 与触控板／触屏／键盘滚动，以 4px DOM 滑块显示状态；12px 指针轨道、8px 稳定留位。模块 hover、键盘可见焦点或拖动时绘制滑块，闲置无绘制、无布局位移；几何由 rAF、ResizeObserver 与溢出标记更新，拖动沿用 AppShell 的 pointer-capture 方式。样式收口 scroll-area.css，无新依赖或颜色。底栏桌面 64px、窄屏 68px；筛选取消／确定为桌面 64×32px、14px／500、左右内边距 11px、间距 12px，窄屏最小高 44px；结果提交高 32px，KeyboardShortcut 高 24px、字号 12px。默认记录页和筛选页通过 CommandMenu 的 stable 模式统一为 480px，受视口上限约束；结果页保留 content 模式。颜色、字号与几何由共享组件和语义 token 负责。
+
+`timeRange` 的有效限定为 `today / week / month / year`，UI 分别显示今天、过去 7 天、过去 30 天、今年；缺失、未知或取消选择规范化为 `all`。`searchTimeStart` 使用本地时区零点，过去 7 天从今天前 6 天开始，过去 30 天从今天前 29 天开始，今年从 1 月 1 日开始；均包含今天并处理日历及夏令时边界。`week` 保留为 URL 和历史中的兼容键。`queryLibraryItems` 按收藏项 `createdAt` 过滤到当前时刻，未来时间记录不进入已限定结果；与类型、标签及全文查询共同生效，不触发网络读取。
+
+`searchHistoryRepository` 经独立存储适配器保存最近搜索：扩展使用 `chrome.storage.local`，普通开发页面回退到 `localStorage`。只在显式提交完整结果时记录规范化关键词、范围、精确标签、`fields[]`、`timeRange` 与使用时间。旧标量 `field` 转为集合，缺失时间回退 `all`，标签 ID 去重排序；按关键词、范围、实际字段、标签 ID 与时间条件去重，保留最多 6 条。没有关键词、具体范围、标签或时间限制的记录丢弃，单独限定字段不构成有效空查询；纯标签或纯时间查询可以保存。面板从支持的四种范围历史中展示最近 3 条，选择后恢复所有可见约束；旧星标、未处理历史保留在存储中，但不提供恢复入口。读取或写入失败不阻断搜索。最近打开复用 repository 更新的 `lastOpenedAt`，只展示实际打开过的最多 4 条。本轮未增加依赖、浏览器权限、IndexedDB schema 迁移或备份格式，最近搜索不进入收藏库备份。此前[复选框校正](docs/design/command-search-checkbox-2026-10-28.md)、[视觉细化](docs/design/command-search-visual-2026-10-28.md)、[交互梳理](docs/design/command-search-interaction-2026-10-28.md)、[精确标签简化](docs/design/command-search-tag-simplification-2026-10-28.md)、[首次修订](docs/design/command-search-refinement-2026-10-28.md)与[二期验收](docs/design/command-search-phase-two-validation.md)保留各次行为及验证；当前规格见[搜索方案](docs/design/command-search.md)。
+
+搜索草稿、预览详情 ID、筛选页状态与列表位置只存在本次面板会话中。打开时复制工作台关键词、字段、时间和生效标签，将侧栏星标／未处理范围转换为全部；其他范围直接继承。筛选页与默认／结果页互斥，中间单独滚动，固定底栏提供取消／确定；进入时保存筛选检查点，确定只更新面板草稿，取消、Esc 或顶部筛选切换恢复原条件和结果位置并保留当前关键词，清空操作同样可以取消。详情预览不写工作台查询 URL；关闭预览返回同次搜索，只有结果页的“查看全部”或提交快捷键应用完整草稿并尝试写入最近搜索，筛选页 Enter／提交快捷键只确定本次筛选。搜索不再接收或渲染 views 列表，快捷视图继续从侧栏调用；现有关联不变，手动改范围或标签清除标记，提交时仅保留仍与草稿范围及标签一致的视图。取消搜索保留原工作台条件和关联。预览可更新最近打开时间，仍不写最近搜索。搜索与详情互斥渲染，不建立嵌套 Modal 焦点陷阱。
 
 参考：[MiniSearch](https://lucaong.github.io/minisearch/)
 
@@ -274,14 +284,14 @@ AI 输出必须是结构化 JSON，并通过 Zod Schema 校验。不合法输出
 
 V1 不引入 Elasticsearch、向量数据库或 SQLite WASM。MiniSearch 足以支持预期的个人收藏规模，并且可以按字段调整匹配权重。
 
-搜索结果先由侧栏确定全部、内容类型、星标、处理状态或快捷视图范围，再由顶部多选标签缩小。顶部不重复提供内容类型、处理状态或星标状态筛选。切换侧栏范围时清空临时标签并恢复“最新”排序；快捷视图只持久化侧栏范围与标签 ID，不保存搜索词、排序或排列样式。精确过滤由 Dexie 查询或内存集合完成，全文相关性交给 MiniSearch。
+工作台搜索结果由一个全部、内容类型、星标或未处理范围与多选精确标签、时间和关键词字段共同确定。搜索面板用类型胶囊可取消地单选网站、文章或关注源，无选中即全部；从星标或未处理打开时初始化为全部。时间单选、标签多选 AND、五字段多选 OR，字段未限定或选满即全部。筛选页只编辑，结果页呈现独立可移除条件，默认页呈现最近记录。工作台入口统计已生效精确标签、实际限定字段及一个非默认时间，不计范围。面板切范围保留词、时间、标签和字段，提交应用完整草稿；直接侧栏导航清临时标签并恢复最新，保留词、时间与字段。快捷视图仍只保存范围与标签 ID。
 
 ## 9. 状态管理
 
 - 业务持久化状态：Dexie。
 - Dexie 查询派生状态：`useLiveQuery()`。
 - 页面内短期状态：React `useState` / `useReducer`。
-- 搜索、内容类型、快捷视图、筛选和当前详情项：URL search params，便于返回时恢复上下文。
+- 已生效关键词、搜索字段、范围、收藏时间条件、快捷视图、标签 ID、排序、排列和当前详情项：URL search params，便于返回时恢复上下文；时间使用 `time` 参数，未提交搜索草稿不写 URL。
 - 灯箱内部状态：组件内 reducer 管理 `closed | detail | image`，图片缩放和平移不写入持久化状态。
 
 V1 不引入 Redux。如果后续出现大量跨页面临时状态，再评估 Zustand。

@@ -8,9 +8,10 @@ interface SelectedTagBarProps {
   onRemove: (tag: string) => void;
   actions?: ReactNode;
   visibleLimit?: number;
+  getLabel?: (tag: string) => string;
 }
 
-export function SelectedTagBar({ tags, onRemove, actions, visibleLimit = 4 }: SelectedTagBarProps) {
+export function SelectedTagBar({ tags, onRemove, actions, visibleLimit = 4, getLabel = (tag) => tag }: SelectedTagBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const visibleTags = useMemo(() => isExpanded ? tags : tags.slice(0, visibleLimit), [isExpanded, tags, visibleLimit]);
   const hiddenCount = Math.max(0, tags.length - visibleTags.length);
@@ -19,7 +20,7 @@ export function SelectedTagBar({ tags, onRemove, actions, visibleLimit = 4 }: Se
     <div className="selected-tag-bar">
       <div className="selected-tag-list" aria-label={t("已选标签")}>
         {visibleTags.map((tag) => (
-          <Badge key={tag} variant="selected" size="sm" removable onPress={() => onRemove(tag)} aria-label={tf("移除标签 {name}", { name: tag })}>{tag}</Badge>
+          <Badge key={tag} variant="selected" size="sm" removable onPress={() => onRemove(tag)} aria-label={tf("移除标签 {name}", { name: getLabel(tag) })}>{getLabel(tag)}</Badge>
         ))}
         {tags.length > visibleLimit ? (
           <button type="button" className="selected-tag-toggle" onClick={() => setIsExpanded((current) => !current)} aria-expanded={isExpanded}>

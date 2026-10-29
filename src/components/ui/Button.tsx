@@ -7,8 +7,11 @@ const buttonStyles = cva("button", {
   variants: {
     variant: {
       primary: "button-primary",
+      contrast: "button-contrast",
       secondary: "button-secondary",
       ghost: "button-ghost",
+      preset: "button-preset",
+      choice: "choice-chip",
       danger: "button-danger",
       dangerGhost: "button-danger-ghost",
     },

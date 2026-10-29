@@ -26,7 +26,8 @@ interface DetailDialogProps {
   onUpdate: (input: UpdateSavedItemInput) => Promise<void>;
   onDelete: () => Promise<void>;
   siteItemCount: number;
-  onShowSite: () => void;
+  onShowSite?: () => void;
+  returnToSearch?: boolean;
   initialMode?: DetailMode;
   initialEditing?: boolean;
   initialEditFocus?: "tags";
@@ -44,7 +45,7 @@ const iconBackgroundOptions = [
   { value: "dark", label: "深底" },
 ] as const;
 
-export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, siteItemCount, onShowSite, initialMode = "details", initialEditing = false, initialEditFocus }: DetailDialogProps) {
+export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, siteItemCount, onShowSite, returnToSearch = false, initialMode = "details", initialEditing = false, initialEditFocus }: DetailDialogProps) {
   const snapshot = useLiveQuery(() => item ? inspirationRepository.getSnapshot(item.id) : undefined, [item?.id]);
   const tagOptions = useLiveQuery(() => inspirationRepository.listTags(), []) ?? [];
   const [mode, setMode] = useState<DetailMode>("details");
@@ -59,6 +60,10 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
   const [coverPasteError, setCoverPasteError] = useState("");
   const [aiRetrying, setAiRetrying] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (item?.id) void inspirationRepository.markOpened(item.id).catch(() => undefined);
+  }, [item?.id]);
 
   useEffect(() => {
     if (!item) return;
@@ -142,8 +147,8 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
       <Modal className="detail-modal">
         <SmoothCorners className="detail-smooth-surface" corners={{ radius: 16, smoothing: 0.6 }} autoEffects={false}>
         <Dialog className={cn("detail-dialog", `kind-${item.kind}`, isEditing && "is-editing")} aria-label={mode === "snapshot" ? t("正文快照") : t("收藏项详情")}>
-          <header className="detail-header">
-            <Button size="icon" variant="ghost" aria-label={mode === "details" ? t("关闭详情") : t("返回详情")} onPress={() => mode === "details" ? onClose() : setMode("details")}><RiCloseLine size={19} /></Button>
+          <header className={cn("detail-header", returnToSearch && mode === "details" && "has-search-return")}>
+            {returnToSearch && mode === "details" ? <Button size="sm" variant="ghost" className="detail-return" aria-label={t("返回搜索")} onPress={onClose}><RiArrowLeftLine size={15} aria-hidden="true" /><span className="detail-return-label">{t("返回搜索")}</span></Button> : <Button size="icon" variant="ghost" aria-label={mode === "details" ? t("关闭详情") : t("返回详情")} onPress={() => mode === "details" ? onClose() : setMode("details")}><RiCloseLine size={19} /></Button>}
             <span className="detail-host" title={item.sourceLabel}>{mode === "snapshot" ? t("本地正文快照") : item.sourceLabel}</span>
             {mode === "details" ? isEditing ? <div className="detail-edit-controls"><Button variant="ghost" size="sm" onPress={cancelEdit}>{t("取消")}</Button><Button variant="primary" size="sm" onPress={() => void save()}>{t("保存修改")}</Button></div> : <a className="button button-primary button-sm" href={item.url} target="_blank" rel="noreferrer">{t("打开原网页 ")}<RiExternalLinkLine size={15} /></a> : <Button variant="primary" size="sm" onPress={() => setMode("details")}>{t("返回详情")}</Button>}
           </header>
@@ -174,7 +179,7 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
                     <div className="detail-title-row"><div><DialogTitle>{item.title}</DialogTitle><p>{item.description || t("暂无描述")}</p></div></div>
                     <section className="detail-section"><div className="detail-taxonomy"><span className="kind-chip">{kindLabel}</span><div className="tag-list">{item.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div></div></section>
                   </>}
-                  {siteItemCount > 1 ? <Button variant="ghost" size="sm" onPress={onShowSite}>{tf("查看来自 {host} 的 {count} 个收藏项", { host: item.siteHost, count: siteItemCount })}</Button> : null}
+                  {siteItemCount > 1 && onShowSite ? <Button variant="ghost" size="sm" onPress={onShowSite}>{tf("查看来自 {host} 的 {count} 个收藏项", { host: item.siteHost, count: siteItemCount })}</Button> : null}
                   <div className="snapshot-row"><div><strong>{t("正文快照")}</strong><span>{tf("{status} · 添加于 {date}", { status: snapshotLabel, date: formatUiDate(item.createdAt) })}</span></div>{item.snapshotStatus === "failed" ? <a className="button button-secondary button-sm" href={item.url} target="_blank" rel="noreferrer" title={t("打开来源页面后，可通过扩展 Popup 重试采集")}>{t("打开来源重试")}</a> : <Button variant="secondary" size="sm" isDisabled={!snapshot?.cleanHtml} onPress={() => setMode("snapshot")}>{item.snapshotStatus === "pending" ? t("等待采集") : t("阅读快照")}</Button>}</div>
                   <div className="snapshot-row ai-status-row"><div><strong><RiSparkling2Line size={15} />{t("AI 整理")}</strong><span>{item.aiError ? t(item.aiError) : tf("{status}。人工描述和标签始终优先。", { status: aiLabel })}</span></div>{item.aiStatus === "failed" ? <Button variant="secondary" size="sm" isDisabled={aiRetrying} onPress={() => void retryAi()}><RiRefreshLine size={15} />{aiRetrying ? t("重试中…") : t("重试 AI")}</Button> : null}</div>
                   {!isEditing ? <div className="detail-actions"><Button variant="secondary" onPress={() => setIsEditing(true)}><RiEditLine size={16} />{t("编辑")}</Button><Button variant="danger" onPress={() => void onDelete()}><RiDeleteBinLine size={16} />{t("删除")}</Button></div> : null}
