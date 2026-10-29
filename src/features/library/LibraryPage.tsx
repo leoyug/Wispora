@@ -18,8 +18,8 @@ import { useToast } from "@/src/components/ui/Toast";
 import { seedDevelopmentData } from "@/src/db/developmentSeed";
 import { inspirationRepository, type DeletedSavedItem } from "@/src/db/repository";
 import { type LibraryItem, type LibraryScope, type SavedItemKind, type UpdateSavedItemInput } from "@/src/domain/inspiration";
-import { selectSearchPreview, createSearchPresentations, createLibrarySearchIndex, queryLibraryItems, type LibrarySortOrder } from "@/src/search/librarySearch";
-import { hasSearchResultIntent, readSearchFields, readSearchScope, readSearchTimeRange, searchConditionCount, searchFieldLabels, searchTimeLabels, type LibraryQuery } from "@/src/search/searchQuery";
+import { getAdjacentSearchPreviewId, createSearchPresentations, createLibrarySearchIndex, queryLibraryItems, type LibrarySortOrder } from "@/src/search/librarySearch";
+import { readSearchFields, readSearchScope, readSearchTimeRange, searchConditionCount, searchFieldLabels, searchTimeLabels, type LibraryQuery } from "@/src/search/searchQuery";
 import { searchHistoryRepository } from "@/src/search/searchHistory";
 import { primaryModifier } from "@/src/lib/platform";
 import { cn } from "@/src/lib/cn";
@@ -39,6 +39,7 @@ type SortOrder = LibrarySortOrder;
 interface SearchSession extends SearchDraft {
   mode: "search" | "preview";
   previewId: string | null;
+  previewIds: string[];
 }
 const emptyItems: LibraryItem[] = [];
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
@@ -156,12 +157,6 @@ export function LibraryPage() {
     const matches = queryLibraryItems(items, searchIndex, { ...options, sort: draft.trim() ? "relevance" : "newest" });
     return { items: matches, presentations: createSearchPresentations(matches, searchIndex, draft, draftFields) };
   }, [items, searchIndex, draftScope, draftFields, draftTags, draftTime]);
-  const previewItems = useMemo(() => {
-    if (searchSession?.mode !== "preview") return [];
-    try { return selectSearchPreview(searchItems(searchSession.query).items, hasSearchResultIntent(searchSession)); }
-    catch { return []; }
-  }, [searchSession?.mode, searchSession?.query, searchSession?.tagIds, searchSession?.timeRange, searchSession?.scope, searchItems]);
-
   const viewTitle = currentView ? currentView.isSystem ? t(currentView.name) : currentView.name : (activeScope === "all" ? t("全部内容") : activeScope === "favorites" ? t("星标") : activeScope === "unprocessed" ? t("未处理") : t(kindLabels[activeScope]));
   const previewing = searchSession?.mode === "preview";
   const selectedItem = items.find((item) => item.id === (previewing ? searchSession.previewId : selectedId) && !item.archivedAt) ?? null;
@@ -172,7 +167,7 @@ export function LibraryPage() {
     if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
     searchScrollRef.current = window.scrollY;
     searchPosition.current = { activeId: null, scrollTop: 0 };
-    setSearchSession({ mode: "search", query, scope: readSearchScope(activeScope), tagIds: effectiveTags, fields: selectedSearchFields, timeRange: selectedSearchTime, savedViewId: currentView && currentView.scope === readSearchScope(activeScope) ? currentView.id : null, previewId: null, filtersOpen: false, immediateRevision: 0 });
+    setSearchSession({ mode: "search", query, scope: readSearchScope(activeScope), tagIds: effectiveTags, fields: selectedSearchFields, timeRange: selectedSearchTime, savedViewId: currentView && currentView.scope === readSearchScope(activeScope) ? currentView.id : null, previewId: null, previewIds: [], filtersOpen: false, immediateRevision: 0 });
   }, [activeScope, query, selectedSearchFields, selectedSearchTime, effectiveTags, currentView]);
 
   useEffect(() => {
@@ -302,11 +297,10 @@ export function LibraryPage() {
 
   function navigateDetail(direction: -1 | 1) {
     if (previewing) {
-      const index = previewItems.findIndex((item) => item.id === searchSession.previewId);
-      const next = previewItems[(index + direction + previewItems.length) % previewItems.length];
+      const next = getAdjacentSearchPreviewId(searchSession.previewIds, items, searchSession.previewId, direction);
       if (next) {
-        searchPosition.current.activeId = next.id;
-        setSearchSession((current) => current ? { ...current, previewId: next.id } : null);
+        searchPosition.current.activeId = next;
+        setSearchSession((current) => current ? { ...current, previewId: next } : null);
       }
       return;
     }
@@ -462,7 +456,7 @@ export function LibraryPage() {
       <TagManagerDialog isOpen={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
       <DataImportDialog isOpen={bookmarkImportOpen} onClose={() => setBookmarkImportOpen(false)} onImport={(urls, enrichMetadata) => importItems("website", urls, enrichMetadata)} />
       {contextMenu && contextItem ? <ContextMenu label={tf("{title} 操作菜单", { title: contextItem.title })} position={contextMenu} actions={contextActions} onClose={closeItemContextMenu} /> : null}
-      {searchSession?.mode === "search" ? <LibrarySearchDialog draft={searchSession} onDraftChange={(draft) => setSearchSession((current) => current ? { ...current, ...draft } : null)} onClose={cancelSearch} onSubmit={submitSearch} onPreview={(id) => { searchPosition.current.activeId = id; setSearchSession((current) => current ? { ...current, mode: "preview", previewId: id } : null); }} search={searchItems} ready={liveItems !== undefined && liveTags !== undefined && liveViews !== undefined} tags={allTags} onRetry={() => setIndexRevision((value) => value + 1)} libraryEmpty={!items.some((item) => !item.archivedAt)} position={searchPosition} /> : null}
+      {searchSession?.mode === "search" ? <LibrarySearchDialog draft={searchSession} onDraftChange={(draft) => setSearchSession((current) => current ? { ...current, ...draft } : null)} onClose={cancelSearch} onSubmit={submitSearch} onPreview={(id, previewIds) => { searchPosition.current.activeId = id; setSearchSession((current) => current ? { ...current, mode: "preview", previewId: id, previewIds } : null); }} search={searchItems} ready={liveItems !== undefined && liveTags !== undefined && liveViews !== undefined} tags={allTags} onRetry={() => setIndexRevision((value) => value + 1)} libraryEmpty={!items.some((item) => !item.archivedAt)} position={searchPosition} /> : null}
       <DetailDialog item={selectedItem} initialMode={previewing ? "details" : detailIntent.mode} initialEditing={previewing ? false : detailIntent.editing} initialEditFocus={previewing ? undefined : detailIntent.editFocus} returnToSearch={previewing} onClose={closeDetail} onNavigate={navigateDetail} onUpdate={updateItem} onDelete={async () => { if (!selectedItem) return; await deleteItem(selectedItem.id); closeDetail(); }} siteItemCount={selectedSiteItemCount} onShowSite={previewing ? undefined : () => { if (!selectedItem) return; setQuery(selectedItem.siteHost); setSearchFields(["all"]); setSortOrder("relevance"); setActiveScope("all"); setSelectedTags([]); closeDetail(); }} />
     </AppShell>
   );

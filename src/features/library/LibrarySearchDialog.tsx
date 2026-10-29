@@ -27,7 +27,7 @@ interface LibrarySearchDialogProps {
   onDraftChange: (draft: SearchDraft) => void;
   onClose: () => void;
   onSubmit: (query: LibraryQuery) => void;
-  onPreview: (id: string) => void;
+  onPreview: (id: string, previewIds: string[]) => void;
   search: SearchItems;
   ready: boolean;
   onRetry?: () => void;
@@ -164,7 +164,7 @@ export function LibrarySearchDialog({ draft, onDraftChange, onClose, onSubmit, o
             {!pending && !previewItems.length ? <div className="command-menu-empty"><RiSearchLine size={28} aria-hidden="true" /><p>{libraryEmpty ? t("还没有收藏项") : showResults ? t("没有找到匹配的收藏项") : t("开始查找收藏项")}</p><span>{showResults ? t("换一个关键词，或调整搜索范围和字段。") : t("搜索名称、描述、域名、标签或已保存的正文。")}</span>{showResults && conditions.length ? <Button variant="secondary" size="sm" onPress={reset}>{t("清空筛选")}</Button> : null}</div> : null}
           </>}
         </>}
-        <CommandMenuList style={{ display: !draft.filtersOpen && previewItems.length && !failed ? undefined : "none" }} aria-label={showResults ? t("搜索结果") : t("最近打开")} items={draft.filtersOpen || failed ? [] : previewItems} dependencies={[presentations]} preferredFocusId={focusId} focusRequest={focusRequest} onActiveChange={onActiveChange} onAction={(key) => { if (!pending && !draft.filtersOpen && previewItems.some((item) => item.id === key)) { position.current.scrollTop = listRef.current?.scrollTop ?? 0; onPreview(String(key)); } }}>
+        <CommandMenuList style={{ display: !draft.filtersOpen && previewItems.length && !failed ? undefined : "none" }} aria-label={showResults ? t("搜索结果") : t("最近打开")} items={draft.filtersOpen || failed ? [] : previewItems} dependencies={[presentations]} preferredFocusId={focusId} focusRequest={focusRequest} onActiveChange={onActiveChange} onAction={(key) => { if (!pending && !draft.filtersOpen && previewItems.some((item) => item.id === key)) { position.current.scrollTop = listRef.current?.scrollTop ?? 0; onPreview(String(key), previewItems.map((item) => item.id)); } }}>
           {(item) => { const presentation = presentations.get(item.id); return <CommandMenuItem id={item.id} textValue={item.title}><SiteIcon item={item} /><div className="command-menu-item-copy"><CommandMenuLabel><Highlight text={item.title} terms={presentation?.titleTerms ?? []} /></CommandMenuLabel><CommandMenuDescription><span className="command-menu-host">{item.siteHost}</span>{(presentation?.text || item.description) ? <span className="command-menu-excerpt">{presentation?.source === "snapshotText" ? `${t("正文")} · ` : presentation?.source === "tags" ? `${t("标签")} · ` : ""}<Highlight text={presentation?.text ?? item.description} terms={presentation?.terms ?? []} /></span> : null}</CommandMenuDescription></div><span className="command-menu-kind">{t(kindLabels[item.kind])}</span></CommandMenuItem>; }}
         </CommandMenuList>
       </div>

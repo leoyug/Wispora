@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryItem } from "@/src/domain/inspiration";
-import { countSearchFacets, createSearchPresentations, highlightSearchText, createLibrarySearchIndex, queryLibraryItems, searchLibrary } from "./librarySearch";
+import { countSearchFacets, createSearchPresentations, getAdjacentSearchPreviewId, highlightSearchText, createLibrarySearchIndex, queryLibraryItems, searchLibrary, selectSearchPreview } from "./librarySearch";
 
 const base = {
   originalUrl: "https://example.com", canonicalUrl: "https://example.com", url: "https://example.com",
@@ -101,6 +101,70 @@ describe("library search results", () => {
   it("distinguishes an unavailable index from zero matches while keeping browsing available", () => {
     expect(() => queryLibraryItems(items, null, query)).toThrow("Local search index unavailable");
     expect(queryLibraryItems(items, null, { ...query, query: "" })).toHaveLength(2);
+  });
+});
+
+describe("search preview detail navigation", () => {
+  const recentItems = (count: number): LibraryItem[] => Array.from({ length: count }, (_, index) => ({
+    ...base, id: String.fromCharCode(65 + index), lastOpenedAt: 100 - index,
+  }));
+
+  it.each([3, 4])("visits all %i recent items forwards despite each open changing their recency", (count) => {
+    const items = recentItems(count);
+    const previewIds = selectSearchPreview(items, false).map((item) => item.id);
+    let current = previewIds[0]!;
+    const visited = [current];
+    for (let step = 0; step < count * 2; step++) {
+      items.find((item) => item.id === current)!.lastOpenedAt = 200 + step;
+      expect(selectSearchPreview(items, false)[0]?.id).toBe(current);
+      current = getAdjacentSearchPreviewId(previewIds, items, current, 1)!;
+      visited.push(current);
+    }
+    expect(visited).toEqual(count === 3 ? ["A", "B", "C", "A", "B", "C", "A"] : ["A", "B", "C", "D", "A", "B", "C", "D", "A"]);
+  });
+
+  it.each([3, 4])("visits all %i recent items backwards and wraps without reordering", (count) => {
+    const items = recentItems(count);
+    const previewIds = selectSearchPreview(items, false).map((item) => item.id);
+    let current = "A";
+    const visited = [current];
+    for (let step = 0; step < count; step++) {
+      items.find((item) => item.id === current)!.lastOpenedAt = 200 + step;
+      current = getAdjacentSearchPreviewId(previewIds, items, current, -1)!;
+      visited.push(current);
+    }
+    expect(visited).toEqual(count === 3 ? ["A", "C", "B", "A"] : ["A", "D", "C", "B", "A"]);
+  });
+
+  it("keeps the eight displayed search results and does not pull in new matches during a detail visit", () => {
+    const items = recentItems(10);
+    const previewIds = selectSearchPreview(items, true).map((item) => item.id);
+    const updated = [{ ...base, id: "new-match" }, ...items.toReversed()];
+    expect(getAdjacentSearchPreviewId(previewIds, updated, "H", 1)).toBe("A");
+    expect(getAdjacentSearchPreviewId(previewIds, updated, "A", -1)).toBe("H");
+    expect(getAdjacentSearchPreviewId(previewIds, updated, "D", 1)).toBe("E");
+  });
+
+  it("skips deleted and archived items without changing the remaining preview order", () => {
+    const items = recentItems(4);
+    const previewIds = selectSearchPreview(items, false).map((item) => item.id);
+    const updated = items.filter((item) => item.id !== "B").map((item) => item.id === "C" ? { ...item, archivedAt: 300 } : item);
+    expect(getAdjacentSearchPreviewId(previewIds, updated, "A", 1)).toBe("D");
+    expect(getAdjacentSearchPreviewId(previewIds, updated, "D", -1)).toBe("A");
+  });
+
+  it("returns no destination when the preview or current item is unavailable", () => {
+    const items = recentItems(3);
+    expect(getAdjacentSearchPreviewId([], items, "A", 1)).toBeNull();
+    expect(getAdjacentSearchPreviewId(["A", "B"], [], "A", -1)).toBeNull();
+    expect(getAdjacentSearchPreviewId(["A", "B"], items, null, 1)).toBeNull();
+    expect(getAdjacentSearchPreviewId(["A", "B"], items, "C", 1)).toBeNull();
+  });
+
+  it("stays on the current item when it is the only available preview", () => {
+    const items = recentItems(1);
+    expect(getAdjacentSearchPreviewId(["A"], items, "A", 1)).toBe("A");
+    expect(getAdjacentSearchPreviewId(["A"], items, "A", -1)).toBe("A");
   });
 });
 

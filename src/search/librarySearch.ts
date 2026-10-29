@@ -113,6 +113,15 @@ export function selectSearchPreview(items: LibraryItem[], showResults: boolean) 
   return showResults ? items.slice(0, 8) : items.filter((item) => item.lastOpenedAt).sort((a, b) => b.lastOpenedAt! - a.lastOpenedAt! || a.id.localeCompare(b.id)).slice(0, 4);
 }
 
+/** Keep the captured preview order while skipping items that are no longer available. */
+export function getAdjacentSearchPreviewId(previewIds: readonly string[], items: readonly LibraryItem[], currentId: string | null, direction: -1 | 1) {
+  const availableIds = new Set(items.filter((item) => !item.archivedAt).map((item) => item.id));
+  const sequence = previewIds.filter((id) => availableIds.has(id));
+  const index = currentId === null ? -1 : sequence.indexOf(currentId);
+  if (index === -1) return null;
+  return sequence[(index + direction + sequence.length) % sequence.length] ?? null;
+}
+
 /** Called only for the visible eight results; never scan every matching snapshot. */
 export function createSearchPresentations(items: LibraryItem[], index: LibrarySearchIndex | null, query: string, fields: readonly SearchField[]): ReadonlyMap<string, SearchPresentation> {
   const hits = new Map(query.trim() && index ? index.results(query, fields).map((hit) => [String(hit.id), hit]) : []);
