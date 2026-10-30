@@ -29,3 +29,4 @@ Accepted
 - 快速收藏入口仅在用户点击时注入，不增加常驻 Content Script 或全站 Host Permission。
 - Chrome 内部页面、扩展商店和其他禁止脚本注入的页面不能显示浮层，需要打开 Dashboard 作为降级路径。
 - 浮层必须显式处理卸载、键盘关闭、滚动隔离以及窄视口布局。
+- Shadow Root 在冒泡阶段阻止 `keydown`、`keypress`、`keyup` 继续传播到宿主网页，避免输入标签或描述时触发网页快捷键；不取消默认输入行为。浮层内部先处理标签选择和 Escape 收起候选列表，未被消费的 Escape 由面板关闭逻辑处理。

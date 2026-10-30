@@ -1,5 +1,12 @@
 /** English interface copy. Keys are the established Chinese UI strings. */
 export const enUS: Record<string, string> = {
+  "清空搜索": "Clear search",
+  "作者": "Author",
+  "导入收藏": "Import bookmarks",
+  "收藏项不存在": "This saved item no longer exists",
+  "未知错误": "Unknown error",
+  "标签不能重复": "Tags must be unique",
+  "备份中包含重复简报，未进行恢复。": "The backup contains duplicate digests. Nothing was restored.",
   "{count} 个收藏项": "{count} saved items",
   "当前范围": "Current scope",
   "添加文章": "Add an article",

@@ -61,7 +61,16 @@ export async function initializeLanguage(options: { updateDocumentLanguage?: boo
   updateLanguage(await readLanguagePreference());
   if (initialized) return;
   initialized = true;
-  if (typeof window !== "undefined") window.addEventListener("languagechange", () => updateLanguage(preference));
+  if (typeof window !== "undefined") {
+    window.addEventListener("languagechange", () => updateLanguage(preference));
+    // The web preview uses localStorage instead of extension storage. Keep its
+    // open dashboards in sync as well, without reading storage on captured pages.
+    window.addEventListener("storage", (event) => {
+      if (!hasExtensionStorage() && event.storageArea === globalThis.localStorage && (event.key === APP_LANGUAGE_KEY || event.key === null)) {
+        updateLanguage(normalizeLanguagePreference(event.newValue));
+      }
+    });
+  }
   if (hasExtensionStorage() && browser.storage.onChanged) {
     browser.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes[APP_LANGUAGE_KEY]) {
