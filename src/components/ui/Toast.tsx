@@ -13,6 +13,7 @@ import {
 } from "react";
 import { cn } from "@/src/lib/cn";
 import { t } from "@/src/i18n/ui";
+import { useAppLanguage } from "@/src/i18n/useLanguage";
 
 export type ToastTone = "neutral" | "info" | "success" | "warning" | "danger";
 
@@ -220,6 +221,7 @@ function Toast({
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  useAppLanguage();
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const nextId = useRef(0);
   const removeTimers = useRef(new Map<number, number>());

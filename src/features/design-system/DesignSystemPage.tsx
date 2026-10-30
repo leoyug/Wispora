@@ -8,6 +8,8 @@ import { digestEntryAnchor } from "@/src/features/digest/readingNavigation";
 import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
 import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
+import { LibraryLayoutSelect, type LibraryLayoutMode } from "@/src/components/inspiration/LibraryLayoutSelect";
+import { LibraryEmptyState } from "@/src/features/library/LibraryEmptyState";
 import { SavedViewReorderList } from "@/src/components/layout/SavedViewReorderList";
 import { SidebarIcon } from "@/src/components/layout/SidebarIcon";
 import { SidebarNavItem } from "@/src/components/layout/SidebarNavItem";
@@ -44,7 +46,8 @@ const colors = [
   { name: "品牌主色", token: "--color-brand", value: "#FF760E" },
   { name: "主色文字", token: "--color-accent-ink", value: "#AB3A00" },
   { name: "标签文字", token: "--color-tag-text", value: "#FF760E" },
-  { name: "搜索命中文字", token: "--color-search-match-text", value: "#AB3A00" },
+  { name: "搜索命中文字", token: "--color-search-match-text", value: "#B84800" },
+  { name: "搜索命中背景", token: "--color-search-match-surface", value: "#FFEADC" },
   { name: "悬停主色", token: "--color-brand-hover", value: "#E96A08" },
   { name: "主色背景 10%", token: "--color-accent-primary-bg", value: "#FF760E · 10%" },
   { name: "主色描边 20%", token: "--color-accent-primary-border", value: "#FF760E · 20%" },
@@ -59,7 +62,8 @@ const colors = [
 const darkColorValues: Record<string, string> = {
   "--color-accent-ink": "#FF931B",
   "--color-tag-text": "#FF931B",
-  "--color-search-match-text": "#FF931B",
+  "--color-search-match-text": "#FF760E",
+  "--color-search-match-surface": "#451F0A",
   "--color-canvas": "#121212",
   "--color-surface": "#181818",
   "--color-surface-secondary": "#202020",
@@ -93,6 +97,7 @@ function PreviewSection({ title, description, children }: { title: string; descr
 }
 
 export function DesignSystemPage({ onBack }: { onBack: () => void }) {
+  const [previewLayout, setPreviewLayout] = useState<LibraryLayoutMode>("cards");
   const [previewChipKeys, setPreviewChipKeys] = useState(new Set<string>(["title"]));
   const [checkedFields, setCheckedFields] = useState<string[]>(["title"]);
   const [isDark, setIsDark] = useState(document.documentElement.dataset.theme === "dark");
@@ -151,14 +156,15 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           <div className="color-grid">{colors.map(({ name, token, value }) => <div className="color-swatch" key={name}><i style={{ background: `var(${token})` }} /><span>{name}</span><code>{isDark ? (darkColorValues[token] ?? value) : value}</code></div>)}</div>
         </PreviewSection>
 
-        <PreviewSection title="字体" description="界面、标题与标签按字符混排 Geist Mono 和系统中文字体；描述使用系统字体，特殊标题保持宋体角色。">
+        <PreviewSection title="字体" description="所有文字使用系统默认无衬线字体，中英文、数字与标点由操作系统统一选择；字重使用 400、500、600、700。">
           <div className="type-specimens">
             <div><span>Brand / Dinish Condensed Bold · Figma SVG</span><BrandLogo variant="wordmark" className="display-wordmark" /></div>
-            <div><span>Headline / PingFang SC</span><p className="headline-type">发现看到的美好</p></div>
-            <div><span>Interface / Unicode-range CJK + Geist Mono</span><p>搜索设计、创意或关键词……「Wispora UI」2026，快速找回真正有用的内容。</p></div>
-            <div><span>Content title &amp; tag / Unicode-range CJK + Geist Mono</span><p className="content-title-type">Design Systems 设计系统 · #React组件库</p></div>
+            <div><span>Headline / System UI · 600</span><p className="headline-type">发现看到的美好</p></div>
+            <div><span>Interface / System UI</span><p>搜索设计、创意或关键词……「Wispora UI」2026，快速找回真正有用的内容。</p></div>
+            <div><span>Content title &amp; tag / System UI</span><p className="content-title-type">Design Systems 设计系统 · React 组件库</p></div>
             <div><span>Description / System Sans</span><p className="description-type">A readable description 使用系统字体呈现，适合连续阅读。</p></div>
-            <div><span>Metadata / Geist Mono</span><code>collectui.com · Last updated: 3 hours ago</code></div>
+            <div><span>Metadata / System UI</span><code>collectui.com · Last updated: 3 hours ago</code></div>
+            {([{ weight: 400, name: "Regular" }, { weight: 500, name: "Medium" }, { weight: 600, name: "Semibold" }, { weight: 700, name: "Bold" }] as const).map(({ weight, name }) => <div key={weight}><span>{name} / {weight} · 15px</span><p style={{ fontWeight: weight }}>稍后阅读 · Wispora UI · 0123456789</p></div>)}
           </div>
         </PreviewSection>
 
@@ -181,6 +187,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
               <Badge>产品设计</Badge><Badge variant="neutral">React Aria</Badge>
               <FacetFilter label="标签" icon={<RiPriceTag3Line size={15} aria-hidden="true" />} options={[{ id: "design", label: "设计", count: 15 }, { id: "react", label: "React", count: 8 }, { id: "motion", label: "动效", count: 6 }]} selectedValues={previewTags} onChange={setPreviewTags} searchable searchPlaceholder="搜索标签" />
               <SelectMenu label="排序方式" value={previewSort} options={[{ value: "newest", label: "最新" }, { value: "oldest", label: "最旧" }]} onChange={setPreviewSort} icon={<RiArrowUpDownLine size={15} aria-hidden="true" />} />
+              <LibraryLayoutSelect value={previewLayout} onChange={setPreviewLayout} />
               <SegmentedControl label="布局示例" value="grid" options={layoutOptions} onChange={() => undefined} />
             </div>
             <SelectedTagBar tags={["设计", "React", "动效", "组件库", "可访问性"]} onRemove={() => undefined} actions={<div className="filter-result-actions"><Button variant="secondary" size="sm">保存为快捷视图</Button><Button variant="ghost" size="sm">清除全部</Button></div>} />
@@ -266,6 +273,11 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           <div className="layout-preview">
             <Card className="layout-nav"><strong>内容类型</strong><span className="is-selected">网站</span><span>文章</span><span>关注源</span></Card>
             <Card className="layout-main"><div className="feedback success"><RiCheckLine size={16} /><span><strong>添加成功</strong>链接已保存，正在后台整理。</span></div><div className="skeleton-lines"><i /><i /><i /></div></Card>
+          </div>
+        </PreviewSection>
+        <PreviewSection title="收藏库空状态" description="区分首次添加、当前范围为空和筛选无结果；恢复操作与当前状态一致。">
+          <div className="empty-state-preview">
+            {(["library", "scope", "filtered"] as const).map((kind) => <LibraryEmptyState key={kind} kind={kind} scope="favorites" scopeTitle="星标" onAdd={() => showToast("添加网站")} onImport={() => showToast("导入收藏")} onShowAll={() => showToast("查看全部收藏")} onClear={() => showToast("清除搜索与筛选")} onSearch={() => showToast("调整搜索与筛选")} />)}
           </div>
         </PreviewSection>
       </div>

@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import tokensCss from "@/src/design-system/tokens.css?inline";
 import { CapturePanel } from "@/src/features/capture/CapturePanel";
+import { LocaleProvider } from "@/src/components/ui/LocaleProvider";
 import panelCss from "@/src/features/capture/capture-panel.css?inline";
 import { applyLanguagePreference, getAppLanguageSnapshot, normalizeLanguagePreference, subscribeLanguage } from "@/src/i18n/language";
 
@@ -21,6 +22,12 @@ export default defineUnlistedScript({
     host.style.cssText = "all:initial!important;color-scheme:light!important;position:fixed!important;top:0!important;right:0!important;width:0!important;height:0!important;overflow:visible!important;z-index:2147483647!important;display:block!important;";
     host.dataset.theme = "light";
     const shadow = host.attachShadow({ mode: "open" });
+    // Let React and native editing handle the event before it reaches page shortcuts.
+    // Shadow DOM isolates styles, but composed keyboard events still escape it.
+    const containKeyboardEvent = (event: Event) => event.stopPropagation();
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      shadow.addEventListener(type, containKeyboardEvent);
+    }
     const style = document.createElement("style");
     style.textContent = `${tokensCss.replaceAll(":root", ":host")}\n${panelCss}`;
     const container = document.createElement("div");
@@ -48,7 +55,7 @@ export default defineUnlistedScript({
     void initialLanguage.then(() => {
       if (host.isConnected) {
         host.lang = getAppLanguageSnapshot();
-        root.render(<React.StrictMode><CapturePanel page={{ title: document.title, url: location.href }} onClose={close} /></React.StrictMode>);
+        root.render(<React.StrictMode><LocaleProvider><CapturePanel page={{ title: document.title, url: location.href }} onClose={close} /></LocaleProvider></React.StrictMode>);
       }
     });
   },

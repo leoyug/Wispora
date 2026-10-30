@@ -1,4 +1,4 @@
-import { tf } from "@/src/i18n/ui";
+import { t, tf } from "@/src/i18n/ui";
 import type { LibraryItem } from "@/src/domain/inspiration";
 import { cn } from "@/src/lib/cn";
 import { useEffect, useState } from "react";
@@ -27,7 +27,7 @@ export function CoverArt({ item, large = false, fit = "cover", eager = false, on
       aria-label={tf("{title} 的封面占位预览", { title: item.title })}
       role="img"
     >
-      <span>{item.cover.label}</span>
+      <span>{["网站", "文章", "关注源"].includes(item.cover.label) ? t(item.cover.label) : item.cover.label}</span>
       <i aria-hidden="true" />
     </div>
   );

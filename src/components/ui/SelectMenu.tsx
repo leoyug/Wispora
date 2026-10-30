@@ -6,6 +6,8 @@ import { cn } from "@/src/lib/cn";
 interface SelectMenuOption<T extends string> {
   value: T;
   label: string;
+  icon?: ReactNode;
+  preview?: ReactNode;
 }
 
 interface SelectMenuProps<T extends string> {
@@ -15,22 +17,25 @@ interface SelectMenuProps<T extends string> {
   onChange: (value: T) => void;
   icon?: ReactNode;
   className?: string;
+  variant?: "default" | "visual";
 }
 
-export function SelectMenu<T extends string>({ label, value, options, onChange, icon, className }: SelectMenuProps<T>) {
+export function SelectMenu<T extends string>({ label, value, options, onChange, icon, className, variant = "default" }: SelectMenuProps<T>) {
+  const selected = options.find((option) => option.value === value);
   return (
     <Select className={cn("select-menu", className)} aria-label={label} selectedKey={value} onSelectionChange={(key) => key !== null && onChange(String(key) as T)}>
       <Button className="toolbar-trigger select-menu-trigger" aria-label={label}>
-        {icon}
+        {selected?.icon ?? icon}
         <SelectValue>{({ selectedText }) => selectedText}</SelectValue>
         <RiArrowDownSLine className="select-menu-chevron" size={15} aria-hidden="true" />
       </Button>
-      <Popover className="popover-surface select-menu-popover" placement="bottom end" offset={6}>
-        <ListBox className="select-menu-list" items={options}>
+      <Popover className={cn("popover-surface select-menu-popover", variant === "visual" && "select-menu-visual")} placement="bottom end" offset={6}>
+        <ListBox className="select-menu-list" items={options} layout={variant === "visual" ? "grid" : "stack"}>
           {(option) => (
             <ListBoxItem id={option.value} className="select-menu-option" textValue={option.label}>
-              <span>{option.label}</span>
-              <RiCheckLine size={15} aria-hidden="true" />
+              {variant === "visual" ? <div className="select-menu-preview" aria-hidden="true">{option.preview}</div> : null}
+              <span className="select-menu-option-label">{option.label}</span>
+              <RiCheckLine className="select-menu-check" size={15} aria-hidden="true" />
             </ListBoxItem>
           )}
         </ListBox>

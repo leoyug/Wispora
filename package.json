@@ -8,7 +8,7 @@
   "bugs": {
     "url": "https://github.com/leoyug/Wispora/issues"
   },
-  "version": "0.7.3",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,7 +23,6 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@fontsource-variable/geist-mono": "^5.3.0",
     "@lisse/react": "^0.7.2",
     "@mozilla/readability": "^0.6.0",
     "@remixicon/react": "^4.9.0",

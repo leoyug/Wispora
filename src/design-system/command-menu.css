@@ -70,7 +70,7 @@
 /* Search lists keep one scrolling middle under the compact input bar. */
 .search-filter-help { margin: 8px 0 0; color: var(--color-muted); font: 400 var(--text-body)/1.6 var(--font-description); }
 .command-menu-list { flex: 0 0 auto; max-height: none; overflow: visible; }
-.command-menu-item mark { color: var(--color-search-match-text); background: var(--color-accent-soft); font-weight: 650; border-radius: var(--radius-tag); }
+.command-menu-item mark { color: var(--color-search-match-text); background: var(--color-search-match-surface); font-weight: 600; border-radius: var(--radius-tag); }
 .search-group-heading { display: flex; align-items: center; justify-content: space-between; min-height: 16px; gap: 12px; margin-bottom: 8px; }
 .search-group-heading h3, .search-recent-heading, .search-filter-heading h2, .search-condition-summary p, .command-menu-status { margin: 0; color: var(--color-text); font-size: var(--text-label); font-weight: 600; line-height: 16px; }
 .search-recent-heading { margin: 0 22px 8px; }
