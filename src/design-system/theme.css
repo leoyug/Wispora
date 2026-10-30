@@ -22,7 +22,8 @@ html[data-theme="dark"] {
   --color-copyright: #888888;
   --color-accent-soft: #38271c;
   --color-accent-ink: #ff931b;
-  --color-search-match-text: var(--color-accent-ink);
+  --color-search-match-text: var(--color-brand);
+  --color-search-match-surface: #451f0a;
   --color-tag-text: var(--color-accent-ink);
   --color-tag-surface: #38271c;
   --color-tag-surface-hover: #50321f;
@@ -69,7 +70,8 @@ html[data-theme="dark"] {
     --color-copyright: color(display-p3 0.53333 0.53333 0.53333);
     --color-accent-soft: color(display-p3 0.21961 0.15294 0.1098);
     --color-accent-ink: color(display-p3 1 0.6 0.25);
-    --color-search-match-text: var(--color-accent-ink);
+    --color-search-match-text: var(--color-brand);
+    --color-search-match-surface: color(display-p3 0.25 0.13 0.06);
     --color-tag-text: var(--color-accent-ink);
     --color-tag-surface: color(display-p3 0.21961 0.15294 0.1098);
     --color-tag-surface-hover: color(display-p3 0.31373 0.19608 0.12157);

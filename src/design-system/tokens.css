@@ -32,7 +32,8 @@
   --color-accent-soft: #fff0e5;
   --color-accent-ink: #ab3a00;
   --color-checkbox-mark: #ffffff;
-  --color-search-match-text: var(--color-accent-ink);
+  --color-search-match-text: #b84800;
+  --color-search-match-surface: #ffeadc;
   --color-tag-text: #ff760e;
   --color-tag-surface: #fff0e5;
   --color-tag-surface-hover: #ffdabe;
@@ -192,7 +193,8 @@
     --color-accent-soft: color(display-p3 1 0.94627 0.90549);
     --color-accent-ink: color(display-p3 0.62 0.26 0.1);
     --color-checkbox-mark: color(display-p3 1 1 1);
-    --color-search-match-text: var(--color-accent-ink);
+    --color-search-match-text: color(display-p3 0.67 0.31001 0.03678);
+    --color-search-match-surface: color(display-p3 1 0.92 0.87);
     --color-tag-text: color(display-p3 1 0.4627 0.0549);
     --color-tag-surface: color(display-p3 1 0.94627 0.90549);
     --color-tag-surface-hover: color(display-p3 1 0.85923 0.75238);
