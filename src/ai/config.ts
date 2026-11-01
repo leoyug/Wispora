@@ -1,5 +1,5 @@
 import type { AiSettings, AiSettingsView, ApiKeyStorage } from "./types";
-import { inferProvider } from "./presets";
+import { inferProvider, isAiProviderId } from "./presets";
 
 const SETTINGS_KEY = "wanderland.ai.settings";
 const LOCAL_KEY = "wanderland.ai.apiKey";
@@ -17,7 +17,7 @@ function cleanSettings(value: Partial<AiSettings> | undefined): AiSettings {
   const endpoint = value?.endpoint?.trim().replace(/\/$/, "") || defaultAiSettings.endpoint;
   const model = value?.model?.trim() || defaultAiSettings.model;
   const apiKeyStorage: ApiKeyStorage = value?.apiKeyStorage === "local" ? "local" : "session";
-  const provider = value?.provider === "openai" || value?.provider === "deepseek" || value?.provider === "custom"
+  const provider = isAiProviderId(value?.provider)
     ? value.provider
     : inferProvider(endpoint);
   return { enabled: value?.enabled === true, provider, endpoint, model, apiKeyStorage };
@@ -37,7 +37,7 @@ async function getStoredCredential() {
   const area = settings.apiKeyStorage === "local" ? browser.storage.local : browser.storage.session;
   const key = settings.apiKeyStorage === "local" ? LOCAL_KEY : SESSION_KEY;
   const value = await area.get(key);
-  return { provider: settings.provider, apiKey: typeof value[key] === "string" ? value[key] as string : "" };
+  return { provider: settings.provider, endpoint: settings.endpoint, apiKey: typeof value[key] === "string" ? value[key] as string : "" };
 }
 
 export async function getAiCredentials(): Promise<{ settings: AiSettings; apiKey: string } | null> {
@@ -50,20 +50,26 @@ export async function getAiCredentials(): Promise<{ settings: AiSettings; apiKey
   return { settings: view, apiKey: String(stored[key] ?? "") };
 }
 
-export async function getAiTestCredentials(input: AiSettings & { apiKey?: string }): Promise<{ settings: AiSettings; apiKey: string }> {
+export async function getAiConnectionCredentials(input: AiSettings & { apiKey?: string }): Promise<{ settings: AiSettings; apiKey: string }> {
   assertSecureAiEndpoint(input.endpoint);
   const settings = cleanSettings(input);
   const previous = await getStoredCredential();
-  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider && new URL(previous.endpoint).origin === new URL(settings.endpoint).origin ? previous.apiKey : "");
   if (!apiKey) throw new Error("请先填写 API Key。");
   return { settings, apiKey };
 }
 
+export async function getAiTestCredentials(input: AiSettings & { apiKey?: string }) {
+  if (!input.model.trim()) throw new Error("请填写模型 ID。");
+  return getAiConnectionCredentials(input);
+}
+
 export async function saveAiSettings(input: AiSettings & { apiKey?: string }): Promise<AiSettingsView> {
   assertSecureAiEndpoint(input.endpoint);
+  if (!input.model.trim()) throw new Error("请填写模型 ID。");
   const previous = await getStoredCredential();
   const settings = cleanSettings(input);
-  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider && new URL(previous.endpoint).origin === new URL(settings.endpoint).origin ? previous.apiKey : "");
   await browser.storage.local.set({ [SETTINGS_KEY]: settings });
   if (settings.apiKeyStorage === "local") {
     if (apiKey) await browser.storage.local.set({ [LOCAL_KEY]: apiKey });

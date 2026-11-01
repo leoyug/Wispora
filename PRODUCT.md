@@ -127,7 +127,7 @@ V1 没有账户系统，因此右上角不需要用户头像作为核心入口�
 
 ## 6. AI 整理规则
 
-AI 使用用户自行配置的 API Key，负责：
+AI 使用用户自行配置的 API Key。设置支持 OpenAI、DeepSeek、Google Gemini、通义千问（Qwen）、Moonshot（Kimi）、OpenRouter 和自定义 OpenAI-compatible 服务；选择提供商会填入默认 Endpoint 与模型，模型可从预设选择或手动填写 ID，Endpoint 可按 Key 所属地域调整。预设列表不代表当前账户已开通的模型；填写或保存 Key 后，可主动获取／刷新提供商模型列表，保留当前模型，并通过连接测试确认其是否适用于文本整理。获取列表不保存表单或 Key，失败可继续使用预设或手动输入。AI 负责：
 
 - 清理或补全网页名称。
 - 生成一段用于卡片识别的简短描述。

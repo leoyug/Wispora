@@ -1,5 +1,25 @@
 /** English interface copy. Keys are the established Chinese UI strings. */
 export const enUS: Record<string, string> = {
+  "模型选择": "Model selection",
+  "获取模型": "Get models",
+  "刷新模型": "Refresh models",
+  "正在获取…": "Fetching…",
+  "已获取 {count} 个模型；能否用于整理请测试连接。": "Fetched {count} models. Test the connection to check compatibility.",
+  "当前为内置预设。填写 API Key 后可获取提供商的模型列表。": "Showing built-in presets. Enter an API key to fetch the provider's model list.",
+  "获取模型失败，请重试或手动填写模型 ID。": "Could not fetch models. Retry or enter a model ID manually.",
+  "获取模型超时，请重试或手动填写模型 ID。": "Fetching models timed out. Retry or enter a model ID manually.",
+  "提供商返回的模型列表格式无效，可手动填写模型 ID。": "The provider returned an invalid model list. Enter a model ID manually.",
+  "提供商没有返回模型，可手动填写模型 ID。": "The provider returned no models. Enter a model ID manually.",
+  "需要允许访问当前 Provider 域名，才能获取模型。": "Allow access to this provider's domain to fetch models.",
+
+  "通义千问（Qwen）": "Qwen (Alibaba Cloud)",
+  "模型预设": "Model preset",
+  "自定义模型": "Custom model",
+  "请填写模型 ID。": "Enter a model ID.",
+  "模型 ID": "Model ID",
+  "填写提供商的模型 ID": "Enter the provider's model ID",
+  "选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。": "Selecting a service fills in its default endpoint and model. Match the endpoint to your API key's region.",
+
   "清空搜索": "Clear search",
   "作者": "Author",
   "导入收藏": "Import bookmarks",

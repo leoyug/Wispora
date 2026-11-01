@@ -1,9 +1,10 @@
-import { RiArrowDownSLine, RiCloseLine, RiRefreshLine, RiSparkling2Line } from "@remixicon/react";
+import { RiCloseLine, RiRefreshLine, RiSparkling2Line } from "@remixicon/react";
 import { useEffect, useState } from "react";
 import { endpointPermissionPattern } from "@/src/ai/config";
 import { defaultAiSettings } from "@/src/ai/config";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
-import { aiProviderPresets } from "@/src/ai/presets";
+import { AiModelSelect } from "@/src/components/ai/AiModelSelect";
+import { aiProviderOptions, aiProviderPresets } from "@/src/ai/presets";
 import type { ExtensionRequest } from "@/src/capture/types";
 import { Button } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
@@ -97,6 +98,7 @@ export function AiSettingsDialog({ isOpen, onClose }: { isOpen: boolean; onClose
   const setStorage = (apiKeyStorage: ApiKeyStorage) => setSettings((current) => ({ ...current, apiKeyStorage }));
   const selectedStorageDescription = t(apiKeyStorageOptions.find((option) => option.value === settings.apiKeyStorage)?.description ?? "浏览器完全退出后需要重新填写。");
   const setProvider = (provider: AiSettings["provider"]) => {
+    setConnectionState("idle"); setConnectionMessage("");
     if (provider !== settings.provider) {
       setHasApiKey(false);
       setApiKey("");
@@ -117,9 +119,9 @@ export function AiSettingsDialog({ isOpen, onClose }: { isOpen: boolean; onClose
             <header className="form-dialog-header settings-header"><div className="form-dialog-icon"><RiSparkling2Line size={20} /></div><div><DialogTitle>{t("AI 助手")}</DialogTitle><p>{t("可选的 OpenAI-compatible Provider，不会影响本地添加、编辑与搜索。")}</p></div><Button size="icon" variant="ghost" aria-label={t("关闭 AI 设置")} onPress={close}><RiCloseLine size={19} /></Button></header>
             <div className="form-dialog-body ai-settings-body">
               <Switch className="ai-toggle" label={t("启用 AI 自动整理")} description={t("关闭后已保存的收藏项和本地功能保持不变。")} isSelected={settings.enabled} onChange={(enabled) => setSettings((current) => ({ ...current, enabled }))} />
-              <label className="ai-provider-field"><span>Provider</span><span className="ai-provider-select"><select value={settings.provider} onChange={(event) => setProvider(event.target.value as AiSettings["provider"])}><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">{t("自定义 OpenAI-compatible")}</option></select><RiArrowDownSLine size={18} aria-hidden="true" /></span><small>{settings.provider === "deepseek" ? t("使用 DeepSeek 官方 API，默认 deepseek-v4-flash。") : t("选择预设会同步填入官方 Endpoint 和默认模型。")}</small></label>
+              <div className="ai-provider-field"><span>Provider</span><SelectMenu label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} /><small>{t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")}</small></div>
               <Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => setSettings((current) => ({ ...current, endpoint }))} placeholder="https://api.openai.com/v1" />
-              <Field label="Model" value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} placeholder="gpt-4.1-mini" />
+              <AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />
               <Field label="API Key" type="password" value={apiKey} onChange={setApiKey} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} />
               <div className="ai-connection-test"><Button variant="secondary" size="sm" isDisabled={connectionState === "testing"} onPress={() => void testConnection()}><RiRefreshLine size={15} />{connectionState === "testing" ? t("正在测试…") : t("测试连接")}</Button>{connectionMessage ? <span className={connectionState === "success" ? "is-success" : "is-error"} role="status">{connectionMessage}</span> : <small>{t("会发送一个最小请求，不会保存当前表单或写入 API Key。")}</small>}</div>
               <div className="ai-key-storage-setting">

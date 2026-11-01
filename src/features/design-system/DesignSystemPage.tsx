@@ -18,6 +18,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/ToggleGroup";
 import { Checkbox, CheckboxField, CheckboxGroup } from "@/src/components/ui/Checkbox";
 import { Button } from "@/src/components/ui/Button";
 import { Card } from "@/src/components/ui/Card";
+import { AiModelSelect } from "@/src/components/ai/AiModelSelect";
 import { Field } from "@/src/components/ui/Field";
 import { FacetFilter } from "@/src/components/ui/FacetFilter";
 import { KeyboardShortcut } from "@/src/components/ui/KeyboardShortcut";
@@ -114,6 +115,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
   ]);
   const [activePreviewView, setActivePreviewView] = useState("preview-design");
   const [previewTags, setPreviewTags] = useState<string[]>(["design"]);
+  const [previewModel, setPreviewModel] = useState("gemini-3.8-flash");
   const [previewSort, setPreviewSort] = useState<"newest" | "oldest">("newest");
   const [previewSwitch, setPreviewSwitch] = useState(true);
   const [previewStorage, setPreviewStorage] = useState<"session" | "local">("session");
@@ -187,6 +189,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
               <Badge>产品设计</Badge><Badge variant="neutral">React Aria</Badge>
               <FacetFilter label="标签" icon={<RiPriceTag3Line size={15} aria-hidden="true" />} options={[{ id: "design", label: "设计", count: 15 }, { id: "react", label: "React", count: 8 }, { id: "motion", label: "动效", count: 6 }]} selectedValues={previewTags} onChange={setPreviewTags} searchable searchPlaceholder="搜索标签" />
               <SelectMenu label="排序方式" value={previewSort} options={[{ value: "newest", label: "最新" }, { value: "oldest", label: "最旧" }]} onChange={setPreviewSort} icon={<RiArrowUpDownLine size={15} aria-hidden="true" />} />
+              <AiModelSelect provider="gemini" value={previewModel} onChange={setPreviewModel} />
               <LibraryLayoutSelect value={previewLayout} onChange={setPreviewLayout} />
               <SegmentedControl label="布局示例" value="grid" options={layoutOptions} onChange={() => undefined} />
             </div>

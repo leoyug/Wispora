@@ -25,6 +25,7 @@ export type ExtensionRequest =
   | { type: "capture:remote-batch"; items: Array<{ itemId: string; url: string; permissionPattern: string }> }
   | { type: "ai:config:get" }
   | { type: "ai:config:save"; settings: AiSettings & { apiKey?: string } }
+  | { type: "ai:models:list"; settings: AiSettings & { apiKey?: string } }
   | { type: "ai:config:test"; settings: AiSettings & { apiKey?: string } }
   | { type: "ai:process" }
   | { type: "ai:retry"; itemId: string }

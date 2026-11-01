@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { aiProviderPresets } from "./presets";
 import { getAiSettings, getAiTestCredentials, hardenAiCredentialStorage, saveAiSettings } from "./config";
 
 function storageArea() {
@@ -35,6 +36,17 @@ describe("AI settings storage", () => {
     expect(await getAiSettings()).toMatchObject({ enabled: false, apiKeyStorage: "local", hasApiKey: true });
   });
 
+  it.each(["gemini", "qwen", "moonshot", "openrouter"] as const)("round trips %s settings and preserves a custom model", async (provider) => {
+    const local = storageArea();
+    const session = storageArea();
+    vi.stubGlobal("browser", { storage: { local, session } });
+    const preset = aiProviderPresets[provider];
+    await saveAiSettings({ enabled: true, provider, endpoint: preset.endpoint, model: "my-custom-model", apiKeyStorage: "session", apiKey: "test-secret" });
+    expect(await getAiSettings()).toMatchObject({ provider, endpoint: preset.endpoint, model: "my-custom-model", hasApiKey: true });
+    await saveAiSettings({ enabled: true, provider: "custom", endpoint: "https://example.com/v1", model: "other", apiKeyStorage: "session" });
+    expect((await getAiSettings()).hasApiKey).toBe(false);
+  });
+
   it("recognizes existing DeepSeek endpoints when migrating settings", async () => {
     const local = storageArea();
     const session = storageArea();
@@ -66,6 +78,12 @@ describe("AI settings storage", () => {
     expect(result.apiKey).toBe("temporary-secret");
     expect(Object.values(local.values)).not.toContain("temporary-secret");
     expect(Object.values(session.values)).not.toContain("temporary-secret");
+  });
+
+  it("rejects an empty custom model before saving or testing", async () => {
+    const settings = { enabled: false, provider: "gemini" as const, endpoint: aiProviderPresets.gemini.endpoint, model: "  ", apiKeyStorage: "session" as const };
+    await expect(saveAiSettings(settings)).rejects.toThrow("请填写模型 ID");
+    await expect(getAiTestCredentials(settings)).rejects.toThrow("请填写模型 ID");
   });
 
   it("rejects insecure or credential-bearing endpoints before storing a key", async () => {

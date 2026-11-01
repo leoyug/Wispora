@@ -26,7 +26,7 @@ export interface AiProvider {
 }
 
 export type ApiKeyStorage = "local" | "session";
-export type AiProviderId = "openai" | "deepseek" | "custom";
+export type AiProviderId = "openai" | "deepseek" | "gemini" | "qwen" | "moonshot" | "openrouter" | "custom";
 
 export interface AiSettings {
   enabled: boolean;
@@ -45,4 +45,10 @@ export interface AiTaskSummary {
   running: number;
   failed: number;
   complete: number;
+}
+
+/** Provider-supplied metadata; only id is sent in generation requests. */
+export interface AiModelOption {
+  id: string;
+  name?: string;
 }

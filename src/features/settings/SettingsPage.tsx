@@ -4,7 +4,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
-import { aiProviderPresets } from "@/src/ai/presets";
+import { AiModelSelect } from "@/src/components/ai/AiModelSelect";
+import { aiProviderOptions, aiProviderPresets } from "@/src/ai/presets";
 import type { ExtensionRequest } from "@/src/capture/types";
 import { AppShell, type SettingsSection } from "@/src/components/layout/AppShell";
 import { Button } from "@/src/components/ui/Button";
@@ -36,11 +37,6 @@ const emptySummary: AiTaskSummary = { pending: 0, running: 0, failed: 0, complet
 const apiKeyStorageOptions = [
   { value: "session" as const, label: "当前会话", description: "退出浏览器后需重新填写。" },
   { value: "local" as const, label: "保存在本地", description: "不会同步，但客户端 Key 仍可被读取。" },
-];
-const aiProviderOptions = [
-  { value: "openai" as const, label: "OpenAI" },
-  { value: "deepseek" as const, label: "DeepSeek" },
-  { value: "custom" as const, label: "自定义服务" },
 ];
 
 function sendExtensionMessage<T>(request: ExtensionRequest) {
@@ -246,6 +242,7 @@ function AiSettings() {
     } catch (reason) { setConnectionState("error"); setConnectionMessage(reason instanceof Error ? t(reason.message) : t("连接测试失败")); }
   };
   const setProvider = (provider: AiSettings["provider"]) => {
+    setConnectionState("idle"); setConnectionMessage("");
     if (provider !== settings.provider) { setHasApiKey(false); setApiKey(""); }
     if (provider === "custom") { setSettings((current) => ({ ...current, provider })); return; }
     const preset = aiProviderPresets[provider];
@@ -262,9 +259,9 @@ function AiSettings() {
     <section className="settings-form-section">
       <SettingsSectionHeading title={t("模型与连接")} description={t("选择服务并配置请求地址、模型和 API Key。")} />
       <SettingsCard>
-        <SettingsRow title="Provider" description={settings.provider === "deepseek" ? t("DeepSeek 官方 API，默认模型。") : t("预设会同步填入 Endpoint 和默认模型。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
+        <SettingsRow title="Provider" description={t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
         <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => setSettings((current) => ({ ...current, endpoint }))} placeholder="https://api.openai.com/v1" />} />
-        <SettingsRow title="Model" control={<Field label="Model" value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} placeholder="gpt-4.1-mini" />} />
+        <SettingsRow title="Model" control={<AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />} />
         <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={setApiKey} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} />} />
         <SettingsRow title={t("测试连接")} description={t("发送最小请求，不保存当前表单或 API Key。")} control={<Button variant="secondary" size="sm" isDisabled={connectionState === "testing"} onPress={() => void testConnection()}><RiRefreshLine size={15} />{connectionState === "testing" ? t("正在测试…") : t("测试连接")}</Button>} >{connectionMessage ? <span className={connectionState === "success" ? "is-success" : "is-error"} role="status">{connectionMessage}</span> : null}</SettingsRow>
       </SettingsCard>

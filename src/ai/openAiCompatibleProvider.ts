@@ -29,7 +29,7 @@ const outputLanguageInstructions: Record<AppLanguage, string> = {
 };
 
 export class OpenAiCompatibleProvider implements AiProvider {
-  constructor(private readonly options: { endpoint: string; model: string; apiKey: string; outputLanguage?: AppLanguage; timeoutMs?: number; extraBody?: Record<string, unknown> }) {}
+  constructor(private readonly options: { endpoint: string; model: string; apiKey: string; outputLanguage?: AppLanguage; timeoutMs?: number; maxTokens?: number; testMaxTokens?: number; omitTemperature?: boolean; tokenParameter?: "max_tokens" | "max_completion_tokens"; extraBody?: Record<string, unknown> }) {}
 
   async testConnection(): Promise<void> {
     const controller = new AbortController();
@@ -42,8 +42,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
         redirect: "error",
         body: JSON.stringify({
           model: this.options.model,
-          temperature: 0,
-          max_tokens: 1,
+          ...(this.options.omitTemperature ? {} : { temperature: 0 }),
+          [this.options.tokenParameter ?? "max_tokens"]: this.options.testMaxTokens ?? 1,
           ...this.options.extraBody,
           messages: [{ role: "user", content: "Reply OK." }],
         }),
@@ -72,9 +72,9 @@ export class OpenAiCompatibleProvider implements AiProvider {
         redirect: "error",
         body: JSON.stringify({
           model: this.options.model,
-          temperature: 0.2,
+          ...(this.options.omitTemperature ? {} : { temperature: 0.2 }),
           response_format: { type: "json_object" },
-          max_tokens: 600,
+          [this.options.tokenParameter ?? "max_tokens"]: this.options.maxTokens ?? 600,
           ...this.options.extraBody,
           messages: [
             {
