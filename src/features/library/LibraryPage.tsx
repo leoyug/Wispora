@@ -25,12 +25,8 @@ import { searchHistoryRepository } from "@/src/search/searchHistory";
 import { primaryModifier } from "@/src/lib/platform";
 import { cn } from "@/src/lib/cn";
 import { DataImportDialog } from "./DataImportDialog";
-import { AiSettingsDialog } from "./AiSettingsDialog";
-import { ArchiveDialog } from "./ArchiveDialog";
-import { BackupDialog } from "./BackupDialog";
 import { DetailDialog } from "./DetailDialog";
 import { ImportDialog } from "./ImportDialog";
-import { TagManagerDialog } from "./TagManagerDialog";
 import { LibrarySkeleton } from "./LibrarySkeleton";
 import { LibraryEmptyState } from "./LibraryEmptyState";
 import { LibrarySearchDialog, type SearchPosition, type SearchDraft } from "./LibrarySearchDialog";
@@ -87,10 +83,6 @@ export function LibraryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(initialState.item);
   const [importKind, setImportKind] = useState<SavedItemKind | null>(null);
   const [bookmarkImportOpen, setBookmarkImportOpen] = useState(false);
-  const [tagManagerOpen, setTagManagerOpen] = useState(false);
-  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [backupOpen, setBackupOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ itemId: string; x: number; y: number; trigger: HTMLElement } | null>(null);
   const [detailIntent, setDetailIntent] = useState<{ mode: "details" | "snapshot"; editing: boolean; editFocus?: "tags" }>({ mode: "details", editing: false });
   const searchRef = useRef<HTMLButtonElement>(null);
@@ -491,10 +483,6 @@ export function LibraryPage() {
       </div>
       <FloatingAddMenu onSelect={setImportKind} />
       <ImportDialog kind={importKind} onClose={() => setImportKind(null)} onAdd={addItem} onBulkAdd={importItems} />
-      <AiSettingsDialog isOpen={aiSettingsOpen} onClose={() => setAiSettingsOpen(false)} />
-      <ArchiveDialog isOpen={archiveOpen} onClose={() => setArchiveOpen(false)} />
-      <BackupDialog isOpen={backupOpen} onClose={() => setBackupOpen(false)} />
-      <TagManagerDialog isOpen={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
       <DataImportDialog isOpen={bookmarkImportOpen} onClose={() => setBookmarkImportOpen(false)} onImport={(urls, enrichMetadata) => importItems("website", urls, enrichMetadata)} />
       {contextMenu && contextItem ? <ContextMenu label={tf("{title} 操作菜单", { title: contextItem.title })} position={contextMenu} actions={contextActions} onClose={closeItemContextMenu} /> : null}
       {searchSession?.mode === "search" ? <LibrarySearchDialog draft={searchSession} onDraftChange={(draft) => setSearchSession((current) => current ? { ...current, ...draft } : null)} onClose={cancelSearch} onSubmit={submitSearch} onPreview={(id, previewIds) => { searchPosition.current.activeId = id; setSearchSession((current) => current ? { ...current, mode: "preview", previewId: id, previewIds } : null); }} search={searchItems} ready={liveItems !== undefined && liveTags !== undefined && liveViews !== undefined} tags={allTags} onRetry={() => setIndexRevision((value) => value + 1)} libraryEmpty={!items.some((item) => !item.archivedAt)} position={searchPosition} /> : null}

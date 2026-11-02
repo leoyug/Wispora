@@ -1,7 +1,9 @@
-export const SIDEBAR_WIDTH_DEFAULT = 220;
-export const SIDEBAR_WIDTH_MIN = 176;
-export const SIDEBAR_WIDTH_MAX = 320;
-export const SIDEBAR_WIDTH_COLLAPSED = 64;
+import { sidebarMetrics } from "@/src/design-system/sidebar";
+
+export const SIDEBAR_WIDTH_DEFAULT = sidebarMetrics.default;
+export const SIDEBAR_WIDTH_MIN = sidebarMetrics.min;
+export const SIDEBAR_WIDTH_MAX = sidebarMetrics.max;
+export const SIDEBAR_WIDTH_COLLAPSED = sidebarMetrics.collapsed;
 export const SIDEBAR_COLLAPSE_THRESHOLD = 160;
 export const SIDEBAR_WIDTH_SNAP_THRESHOLD = 20;
 

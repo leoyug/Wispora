@@ -1,9 +1,11 @@
-import { RiArrowRightUpLine, RiCloseLine, RiRefreshLine, RiSearchLine, RiShieldCheckLine } from "@remixicon/react";
+import { RiArrowRightUpLine, RiRefreshLine, RiSearchLine, RiShieldCheckLine } from "@remixicon/react";
 import { rise } from "cube-motion";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
+import { BookmarkImportFields } from "@/src/components/import/BookmarkImportFields";
+import { useBookmarkImport } from "@/src/features/import/useBookmarkImport";
 import { AiModelSelect } from "@/src/components/ai/AiModelSelect";
 import { aiProviderOptions, aiProviderPresets } from "@/src/ai/presets";
 import type { ExtensionRequest } from "@/src/capture/types";
@@ -12,7 +14,7 @@ import { Button } from "@/src/components/ui/Button";
 import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { Field, Input } from "@/src/components/ui/Field";
-import { SearchField, SearchInput } from "@/src/components/ui/SearchField";
+import { CompactSearchField } from "@/src/components/ui/SearchField";
 import { RadioGroup } from "@/src/components/ui/RadioGroup";
 import { SelectMenu } from "@/src/components/ui/SelectMenu";
 import { Switch } from "@/src/components/ui/Switch";
@@ -27,7 +29,7 @@ import { formatUiDate } from "@/src/i18n/date";
 import { DigestSettings } from "@/src/features/digest/DigestSettings";
 import { DigestHistoryPage } from "@/src/features/digest/DigestHistoryPage";
 import type { DigestKind } from "@/src/domain/digest";
-import { SettingsHeader, SettingsSectionHeading, SettingsCard, SettingsRow } from "./SettingsPrimitives";
+import { SettingsHeader, SettingsSectionHeading, SettingsCard, SettingsRow } from "@/src/components/settings/SettingsPrimitives";
 import { version as packageVersion } from "../../../package.json";
 
 const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
@@ -44,20 +46,6 @@ function sendExtensionMessage<T>(request: ExtensionRequest) {
     return Promise.reject(new Error(t("AI 设置需要在已加载的浏览器扩展页面中使用。")));
   }
   return browser.runtime.sendMessage(request) as Promise<T>;
-}
-
-function extractBookmarkUrls(value: string) {
-  const candidates = [...new DOMParser().parseFromString(value, "text/html").querySelectorAll<HTMLAnchorElement>("a[href]")].map((anchor) => anchor.href);
-  const unique = new Set<string>();
-  for (const candidate of candidates) {
-    try {
-      const parsed = new URL(candidate.trim());
-      if (/^https?:$/.test(parsed.protocol)) unique.add(parsed.href);
-    } catch {
-      // Ignore invalid bookmark fragments and report when no usable URL remains.
-    }
-  }
-  return [...unique];
 }
 
 async function importBookmarkUrls(urls: string[], enrichMetadata: boolean) {
@@ -89,26 +77,10 @@ async function importBookmarkUrls(urls: string[], enrichMetadata: boolean) {
 
 function BookmarkSettings({ onImported }: { onImported?: () => void }) {
   const { showToast, showUndoToast } = useToast();
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-  const [enrichMetadata, setEnrichMetadata] = useState(false);
   const [result, setResult] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const submit = async () => {
-    const urls = extractBookmarkUrls(value);
-    if (urls.length === 0) {
-      setError(t("书签 HTML 中没有找到可导入的链接"));
-      return;
-    }
-    setIsSubmitting(true);
-    setError(""); setResult("");
-    try {
-      const result = await importBookmarkUrls(urls, enrichMetadata);
-      if (result.added === 0) {
-        setError(tf("没有新增内容，{count} 个链接已存在。", { count: result.skipped }));
-        return;
-      }
-      setValue("");
+  const { value, setValue, enrichMetadata, setEnrichMetadata, error, isSubmitting, submit } = useBookmarkImport({
+    onImport: async (urls, enrich) => { setResult(""); return importBookmarkUrls(urls, enrich); },
+    onImported: (result) => {
       setResult(tf("导入完成：新增 {added} 个收藏项，跳过 {skipped} 个已有项。", { added: result.added, skipped: result.skipped }));
       showUndoToast(tf("已添加 {count} 个收藏项", { count: result.added }), {
         onUndo: async () => {
@@ -122,26 +94,13 @@ function BookmarkSettings({ onImported }: { onImported?: () => void }) {
         },
       });
       onImported?.();
-    } catch {
-      setError(t("导入未能写入本地收藏库，请重试。"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
 
   return <form className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
     <SettingsHeader title={t("导入书签")} description={t("导入浏览器保存的书签，描述与标签可在后台逐步补全。")} action={<Button type="submit" variant="primary" size="sm" isDisabled={isSubmitting}>{isSubmitting ? t("正在导入…") : t("开始导入")}</Button>} />
-    <section className="settings-form-section">
-      <SettingsSectionHeading title={t("书签内容")} description={t("书签会作为“网站”类型保存，已存在的规范化链接会自动跳过。")} />
-      <label className="settings-textarea-label"><span className="sr-only">{t("书签 HTML 内容")}</span><textarea value={value} onChange={(event) => setValue(event.target.value)} placeholder={t("粘贴浏览器导出的书签 HTML 内容")} autoFocus /></label>
-    </section>
-    <section className="settings-form-section">
-      <SettingsSectionHeading title={t("补全收藏项信息")} description={t("浏览器将一次确认本批次涉及的网站。")} />
-      <SettingsCard className="settings-option-card">
-        <Switch className="settings-option-switch" label={t("信息与封面")} description={t("只读取标题、描述、favicon和公开 OG 封面，完成后立即撤销全部访问权限。")} isSelected={enrichMetadata} onChange={setEnrichMetadata} />
-      </SettingsCard>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}{result ? <p className="form-success" role="status">{result}</p> : null}
-    </section>
+    <BookmarkImportFields variant="settings" value={value} onChange={setValue} enrichMetadata={enrichMetadata} onEnrichChange={setEnrichMetadata} />
+    {error ? <p className="form-error" role="alert">{error}</p> : null}{result ? <p className="form-success" role="status">{result}</p> : null}
   </form>;
 }
 
@@ -170,11 +129,7 @@ function TagsSettings() {
   const save = async (id: string) => { const result = await inspirationRepository.renameTag(id, name); setEditingId(undefined); showToast(t(result === "merged" ? "标签已合并" : "标签已保存"), { tone: "success" }); };
   const deleteTagItem = async (id: string) => { await inspirationRepository.deleteTag(id); showToast(t("标签已删除"), { tone: "success" }); };
   const closeSearch = () => { setIsSearchOpen(false); setQuery(""); };
-  const tagSearchAction = isSearchOpen ? <SearchField className="tag-search-field" aria-label={t("搜索标签")} value={query} onChange={setQuery} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeSearch(); } }}>
-    <RiSearchLine size={16} aria-hidden="true" />
-    <SearchInput autoFocus aria-label={t("搜索标签")} placeholder={t("搜索标签")} />
-    {query ? <Button size="icon" variant="ghost" aria-label={t("清除标签搜索")} onPress={() => setQuery("")}><RiCloseLine size={16} /></Button> : null}
-  </SearchField> : <Button size="sm" variant="secondary" onPress={() => setIsSearchOpen(true)}><RiSearchLine size={15} aria-hidden="true" />{t("搜索标签")}</Button>;
+  const tagSearchAction = isSearchOpen ? <CompactSearchField aria-label={t("搜索标签")} value={query} onChange={setQuery} placeholder={t("搜索标签")} clearLabel={t("清除标签搜索")} autoFocus onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeSearch(); } }} /> : <Button size="sm" variant="secondary" onPress={() => setIsSearchOpen(true)}><RiSearchLine size={15} aria-hidden="true" />{t("搜索标签")}</Button>;
   return <><div className="settings-form">
     <SettingsHeader title={t("标签")} description={t("统一管理收藏库中的标签，重命名为已有标签会自动合并。")} />
     <section className="settings-form-section">

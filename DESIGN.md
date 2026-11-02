@@ -187,7 +187,7 @@ components:
 - 默认页显示最多 3 条最近搜索及最多 4 条真实最近打开的收藏项；没有对应记录时不渲染分组，也不重复显示“输入关键词开始查找”。只限定字段时仍显示默认记录。最近搜索恢复关键词、类型、时间、精确标签与字段；旧星标、未处理范围记录留在存储中，但不提供面板恢复入口。先前[三态细化](docs/design/command-search-figma-2026-10-28.md)、[复选框校正](docs/design/command-search-checkbox-2026-10-28.md)、[视觉细化](docs/design/command-search-visual-2026-10-28.md)、[精确标签简化](docs/design/command-search-tag-simplification-2026-10-28.md)、[首次修订](docs/design/command-search-refinement-2026-10-28.md)和[二期验收](docs/design/command-search-phase-two-validation.md)均为历史证据；当前行为以[搜索方案](docs/design/command-search.md)为准。
 - 结果行只预览详情；搜索与预览之间使用互斥受控状态，详情的“返回搜索”恢复草稿、活动结果和列表滚动。只有“查看全部结果”或 `⌘Enter / Ctrl+Enter` 一次提交范围、关键词、时间、标签与字段。当前视图的范围及标签仍与草稿一致时保留关联；手动改过范围或标签则解除关联。取消保留原条件与滚动位置。预览修改收藏数据仍正常保存，不等同于提交搜索。
 - 工具栏高 `52px`。分段控件和视图切换使用 `surface-muted #e8e3db` 底色，当前项为白色。
-- 工作台工具栏内的筛选、排序和筛选结果操作按钮在悬停时统一使用轻量 `toolbar-control-hover` 动效：控件位置保持不变，保留细描边并以平滑减速曲线过渡到单层、低透明度、紧凑扩散范围的柔和下投影。排列方式改为共享 `SelectMenu visual` 入口，与标签和排序使用一致的触发器反馈；`SegmentedControl` 仍供其他适合直接切换的场景使用。该状态只作用于 `.collection-toolbar`，不得复用或覆盖卡片的 `card-lift` 阴影。筛选容器允许换行且保持 `overflow: visible`，禁止裁切控件阴影。
+- 工作台工具栏内的筛选、排序和筛选结果操作按钮在悬停时统一使用轻量 `toolbar-control-hover` 动效：控件位置保持不变，保留细描边并以平滑减速曲线过渡到单层、低透明度、紧凑扩散范围的柔和下投影。排列方式改为共享 `SelectMenu visual` 入口，与标签和排序使用一致的触发器反馈。该状态只作用于 `.collection-toolbar`，不得复用或覆盖卡片的 `card-lift` 阴影。筛选容器允许换行且保持 `overflow: visible`，禁止裁切控件阴影。
 - 工具栏左侧显示当前范围、结果数和“标签”入口；右侧显示“最新 / 最旧”排序（有关键词时另可选“最相关”）和显示当前图标及模式名称的排列下拉入口。标签与排序触发器统一复用 `toolbar-trigger` 的 `36px` 高度、Control 字号、`500` 字重、表面、描边及展开状态；展开只旋转箭头，不改变按钮位置。内容类型、处理状态与星标状态由侧栏范围表达，搜索面板只在草稿中替换同一范围值，常驻工具栏不重复设置范围入口。
 - “标签”入口采用紧凑按钮并显示已选数量；点击后打开可搜索、可多选且带使用数量的浮层，搜索框固定显示“搜索标签”。搜索框与可悬停选项使用一致的 `8px` 内圆角，小于浮层的 `12px` 外圆角，以保持视觉连续。已选项在静止状态下不使用底色，只保留品牌色文字与勾选框；列表项仅在鼠标悬停或键盘可见焦点时使用次级灰色表面，鼠标点击留下的普通焦点不得持续显示底色。有筛选时，入口使用白色表面，已选数量使用品牌主色胶囊 Badge 和白色数字，避免整块按钮被品牌色占满。
 - 标签筛选、排序选择和快捷视图操作菜单统一复用 `popover-surface`：白色表面、`12px` 圆角、`border-subtle` 细边框、`shadow-window` 阴影及相同的进入动效。内部可操作菜单项统一使用 `surface-subtle` 悬停背景；不同浮层只保留由内容结构决定的宽度与布局差异。
@@ -284,3 +284,17 @@ components:
 DeepSeek 的 `deepseek-flash` 在模型下拉框中显示为“DeepSeek V4.1 Flash（deepseek-flash）”，让用户同时识别产品版本与 API ID；预设和实时列表共用同一显示映射，保存与调用仍使用原始 ID。长名称使用共享选择器的单行省略与菜单换行，不扩宽设置表单。
 
 实时模型列表优先显示提供商的 `name`，并附上 `id`；只有未返回名称时才使用本地显示映射或原始 ID。服务端名称优先于本地固定名称，避免稳定 API 别名更新版本后仍显示旧版本；选择与保存始终传递原始 ID。
+
+
+### 组件与变量收口（2026-11-01）
+
+- 设计变量集中在 `src/design-system/tokens.css`，通用及页面样式由 `styles.css` 承载，深色覆盖保留在 `theme.css`。开发目录的 `preview.css` 仅随设计系统路由加载。页面不能直接写颜色；主按钮文字、添加按钮边界、弹窗遮罩与各类阴影统一引用语义变量，新增颜色同时提供 sRGB 回退与 Display-P3 值。媒体圆角 `radius-media` 复用 `radius-panel`，同色同用途的变量通过别名引用。
+- 侧栏默认、最小、最大和折叠宽度由 `src/design-system/sidebar.ts` 统一提供给布局 CSS 与偏好逻辑，禁止另行维护近似数值。
+- 设置页与简报共用 `src/components/settings/SettingsPrimitives.tsx`。旧 AI、归档、备份、标签管理弹窗因无打开入口而移除，功能继续由独立设置页提供；没有调用方的 AnimatedSearchField、StatusDot 与旧排列 SegmentedControl 一并移除。
+- 普通搜索复用 `CompactSearchField`，保留底层 `SearchField / SearchInput` 供 Command Menu 编排；标签输入中的可移除标签复用 `Badge`。按钮触发菜单与右键菜单共用 `MenuSurface / MenuItem` 的状态样式和键盘行为，定位仍由各自容器负责。快捷视图删除使用共享 `ConfirmDialog`，取消保留视图和收藏项。
+- 添加及书签导入弹窗复用 `FormDialogHeader / FormDialogFooter`。设置页和弹窗共用 `BookmarkImportFields` 与 `useBookmarkImport`；解析仅接受绝对 HTTP(S) 链接，去重后交给原有 repository 与按需权限流程。导入期间禁用提交和关闭，成功后保留设置页撤回能力。
+- `#design-system` 补齐 TagInput、普通搜索、菜单、右键菜单、表单与确认弹窗、Tooltip、ScrollArea、图标、封面、标签展开、设置布局和书签输入示例。颜色目录直接从 token 源码读取 sRGB 参考值、别名与深色覆盖，使用实际 P3 token 绘制；圆角、阴影、排版、间距、布局与动效变量提供目录及交互示例，减少动态效果时取消示例位移过渡。界面说明与操作同步提供英文，用户内容示例保留原始内容。
+
+快捷视图的“更多”触发器保持 `28×28px`，覆盖通用 Button 的最小高度；悬停、键盘焦点和菜单展开时使用 `surface-hover` 半透明叠层，与整行表面保持可辨识的层次。触发器不应用通用按钮的按下位移，图标在默认、悬停和按下时保持居中。
+
+设计系统预览顶部提供常驻的浅色／深色切换，复用 ToggleGroup 单选与工作台主题偏好；点击当前项不能取消，色板参考值与组件外观随主题同步更新，中英文使用既有主题文案。

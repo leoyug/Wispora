@@ -76,7 +76,7 @@ Intent UI 当前 registry 是共享 UI 组件的首选结构来源。组件通�
 | `Switch` | Switch | 使用 `SwitchField + SwitchButton`，覆盖开关、焦点和禁用态 |
 | `RadioGroup` | Radio Group | 用于互斥选项，不用 checkbox 或 Switch 代替 |
 | `CheckboxGroup` / `CheckboxField` / `Checkbox` | Checkbox | 沿用当前 registry 的 Group → Field → Button 分层、slot 与受控多选；通过 CheckboxIndicator 复用既有 FacetFilter 的 16px 形状与勾线，状态使用语义 token |
-| `SegmentedControl` | Toggle Group | 使用单选 `ToggleButtonGroup` 表达布局和模式切换 |
+| `ToggleGroup / ToggleGroupItem` | Toggle Group | 表达可取消单选与多选胶囊；排列使用 `LibraryLayoutSelect` |
 | `Badge` | Badge | 使用无 `#` 前缀的标签名称和标签语义色 |
 | `Card` | Card | 作为无业务语义的基础表面，领域卡片另行组合 |
 | `FacetFilter` | Popover + Search Field + Checkbox | 保留多选筛选、数量和清除操作 |

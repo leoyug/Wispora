@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, MenuItem } from "react-aria-components";
-import { cn } from "@/src/lib/cn";
+import { MenuSurface, MenuItem } from "./Menu";
 
 export interface ContextMenuAction {
   id: string;
@@ -82,7 +81,7 @@ export function ContextMenu({ label, position, actions, onClose }: ContextMenuPr
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <Menu
+      <MenuSurface
         aria-label={label}
         autoFocus="first"
         className="menu-content item-context-menu"
@@ -98,12 +97,13 @@ export function ContextMenu({ label, position, actions, onClose }: ContextMenuPr
             key={action.id}
             id={action.id}
             isDisabled={action.disabled}
-            className={cn("menu-item", action.separatorBefore && "menu-item-separated", action.danger && "is-danger")}
+            separatorBefore={action.separatorBefore}
+            danger={action.danger}
           >
             {action.icon}<span>{action.label}</span>
           </MenuItem>
         ))}
-      </Menu>
+      </MenuSurface>
     </div>,
     document.body,
   );

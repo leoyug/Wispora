@@ -1,3 +1,4 @@
+import { t, tf } from "@/src/i18n/ui";
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { SearchTrigger } from "@/src/components/ui/SearchTrigger";
@@ -30,7 +31,7 @@ export function SearchPreview() {
   const search = useCallback((value: string) => {
     if (scenario === "error") throw new Error("Design system search error specimen");
     if (scenario === "empty") return { items: [], presentations: new Map() };
-    if (scenario === "long") return { items: [{ ...inspirationItems[0]!, title: "一个用于检查中英文长标题与换行的设计系统参考 Design System Reference With A Very Long Name", description: "用于验证窄屏、缩放与单行省略；描述保持清晰，并且不会将底部提交操作挤出面板。" }], presentations: new Map() };
+    if (scenario === "long") return { items: [{ ...inspirationItems[0]!, title: t("一个用于检查中英文长标题与换行的设计系统参考 Design System Reference With A Very Long Name"), description: t("用于验证窄屏、缩放与单行省略；描述保持清晰，并且不会将底部提交操作挤出面板。") }], presentations: new Map() };
     const options = { ...draft, query: value };
     const matches = queryLibraryItems(previewItems, index, { ...options, sort: "relevance" });
     return { items: matches, presentations: createSearchPresentations(matches, index, value, draft.fields) };
@@ -43,9 +44,9 @@ export function SearchPreview() {
   const modifier = primaryModifier();
   return (
     <div className="component-stack">
-      <SearchTrigger query={applied.query} placeholder="搜索收藏…" conditionLabel={searchConditionCount(applied) ? `筛选 ${searchConditionCount(applied)}` : undefined} shortcut={[modifier, "K"]} aria-label="打开搜索预览" onPress={() => open("results")} />
-      <div className="component-row">{scenarios.map(([value, label]) => <Button key={value} size="sm" onPress={() => open(value)}>{label}</Button>)}</div>
-      {scenario ? <LibrarySearchDialog historyRepository={historyRepository} draft={draft} onDraftChange={setDraft} onClose={() => setScenario(null)} onSubmit={(value) => { setApplied(value); setScenario(null); }} onPreview={() => showToast("这是设计系统中的结果行；完整预览往返请在工作台验证。", { tone: "info" })} search={search} ready={scenario !== "loading"} tags={previewTags} position={position} /> : null}
+      <SearchTrigger query={applied.query} placeholder={t("搜索收藏…")} conditionLabel={searchConditionCount(applied) ? tf("筛选 {count}", { count: searchConditionCount(applied) }) : undefined} shortcut={[modifier, "K"]} aria-label={t("打开搜索预览")} onPress={() => open("results")} />
+      <div className="component-row">{scenarios.map(([value, label]) => <Button key={value} size="sm" onPress={() => open(value)}>{t(label)}</Button>)}</div>
+      {scenario ? <LibrarySearchDialog historyRepository={historyRepository} draft={draft} onDraftChange={setDraft} onClose={() => setScenario(null)} onSubmit={(value) => { setApplied(value); setScenario(null); }} onPreview={() => showToast(t("这是设计系统中的结果行；完整预览往返请在工作台验证。"), { tone: "info" })} search={search} ready={scenario !== "loading"} tags={previewTags} position={position} /> : null}
     </div>
   );
 }

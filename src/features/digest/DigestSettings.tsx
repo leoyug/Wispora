@@ -4,7 +4,7 @@ import { RiLoader4Line } from "@remixicon/react";
 import { Button } from "@/src/components/ui/Button";
 import { digestRepository } from "@/src/db/digestRepository";
 import { digestDateLabel } from "@/src/domain/digest";
-import { SettingsCard, SettingsHeader, SettingsRow, SettingsSectionHeading } from "@/src/features/settings/SettingsPrimitives";
+import { SettingsCard, SettingsHeader, SettingsRow, SettingsSectionHeading } from "@/src/components/settings/SettingsPrimitives";
 import { t } from "@/src/i18n/ui";
 import { useDigestDate } from "./useDigestDate";
 
