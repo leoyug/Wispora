@@ -1,17 +1,7 @@
-import { RiCloseLine } from "@remixicon/react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FocusEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
-import { cn } from "@/src/lib/cn";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Toaster, toast as sonner } from "sonner";
+import { RareToastCard } from "./RareToast";
 import { t } from "@/src/i18n/ui";
 import { useAppLanguage } from "@/src/i18n/useLanguage";
 
@@ -36,19 +26,6 @@ export interface ToastUpdateOptions extends Omit<ToastOptions, "description" | "
   action?: ToastAction | null;
 }
 
-interface ToastState {
-  id: number;
-  title: ReactNode;
-  description?: ReactNode;
-  tone: ToastTone;
-  duration: number;
-  action?: ToastAction;
-  isLoading: boolean;
-  shortcut?: "undo";
-  isOpen: boolean;
-  revision: number;
-}
-
 interface ToastContextValue {
   showToast: (title: ReactNode, options?: ToastOptions) => number;
   showUndoToast: (message: string, options: { subject?: string; onUndo: () => void | Promise<void> }) => number;
@@ -57,11 +34,18 @@ interface ToastContextValue {
   clearToasts: () => void;
 }
 
+interface ToastState extends ToastOptions {
+  id: number;
+  title: ReactNode;
+  duration: number;
+  revision: number;
+}
+
 const ToastContext = createContext<ToastContextValue | null>(null);
-const TOAST_CLOSE_MS = 250;
+const StackPausedContext = createContext(false);
 const DEFAULT_TOAST_DURATION = 4000;
 const ACTION_TOAST_DURATION = 7000;
-const MAX_VISIBLE_TOASTS = 2;
+let nextToastId = 0;
 
 function toastDuration(options: ToastOptions) {
   if (options.duration !== undefined) return options.duration;
@@ -69,249 +53,115 @@ function toastDuration(options: ToastOptions) {
   return options.action ? ACTION_TOAST_DURATION : DEFAULT_TOAST_DURATION;
 }
 
-function Toast({
-  toast,
-  onOpen,
-  onDismiss,
-}: {
-  toast: ToastState;
-  onOpen: (id: number) => void;
-  onDismiss: (id: number) => void;
-}) {
-  const timerRef = useRef<number | undefined>(undefined);
-  const actionInvokedRef = useRef(false);
-  const startedAtRef = useRef(0);
-  const remainingRef = useRef(toast.duration);
-  const pauseReasonsRef = useRef(new Set<string>());
-  const titleId = `toast-title-${toast.id}`;
-  const descriptionId = `toast-description-${toast.id}`;
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current === undefined) return;
-    window.clearTimeout(timerRef.current);
-    timerRef.current = undefined;
-  }, []);
-
-  const startTimer = useCallback(() => {
-    clearTimer();
-    if (!toast.isOpen || toast.duration <= 0 || pauseReasonsRef.current.size > 0) return;
-    if (remainingRef.current <= 0) {
-      onDismiss(toast.id);
-      return;
-    }
-    startedAtRef.current = performance.now();
-    timerRef.current = window.setTimeout(() => onDismiss(toast.id), remainingRef.current);
-  }, [clearTimer, onDismiss, toast.duration, toast.id, toast.isOpen]);
-
-  const pauseTimer = useCallback((reason: string) => {
-    if (pauseReasonsRef.current.has(reason)) return;
-    pauseReasonsRef.current.add(reason);
-    if (timerRef.current === undefined) return;
-    remainingRef.current = Math.max(0, remainingRef.current - (performance.now() - startedAtRef.current));
-    clearTimer();
-  }, [clearTimer]);
-
-  const resumeTimer = useCallback((reason: string) => {
-    pauseReasonsRef.current.delete(reason);
-    if (pauseReasonsRef.current.size === 0) startTimer();
-  }, [startTimer]);
+function ManagedToast({ toast, onDismiss }: { toast: ToastState; onDismiss: (id: number) => void }) {
+  const stackPaused = useContext(StackPausedContext);
+  const remaining = useRef(toast.duration);
+  const actionInvoked = useRef(false);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => onOpen(toast.id));
-    return () => cancelAnimationFrame(frame);
-  }, [onOpen, toast.id]);
+    remaining.current = toast.duration;
+    actionInvoked.current = false;
+  }, [toast.duration, toast.revision]);
 
+  // Own lifetime so hover, keyboard focus and background tabs all preserve the
+  // remaining time. Sonner owns entry, exit, measuring, swipe and stacking.
   useEffect(() => {
-    remainingRef.current = toast.duration;
-    actionInvokedRef.current = false;
-    if (document.hidden) pauseReasonsRef.current.add("visibility");
-    else pauseReasonsRef.current.delete("visibility");
-    startTimer();
-    return clearTimer;
-  }, [clearTimer, startTimer, toast.duration, toast.revision]);
-
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) pauseTimer("visibility");
-      else resumeTimer("visibility");
+    if (stackPaused || toast.duration <= 0 || !Number.isFinite(toast.duration)) return;
+    const started = performance.now();
+    const timer = window.setTimeout(() => onDismiss(toast.id), Math.max(0, remaining.current));
+    return () => {
+      window.clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (performance.now() - started));
     };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [pauseTimer, resumeTimer]);
+  }, [onDismiss, stackPaused, toast.duration, toast.id, toast.revision]);
 
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    resumeTimer("focus");
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape") return;
-    event.stopPropagation();
+  const invokeAction = () => {
+    if (!toast.action || actionInvoked.current) return;
+    actionInvoked.current = true;
     onDismiss(toast.id);
+    // Callers own error feedback, as in the existing Toast API.
+    Promise.resolve().then(toast.action.onPress).catch(() => undefined);
   };
 
-  const invokeAction = async () => {
-    if (!toast.action || actionInvokedRef.current) return;
-    actionInvokedRef.current = true;
-    onDismiss(toast.id);
-    try {
-      await toast.action.onPress();
-    } catch {
-      // Action handlers own their user-facing error feedback.
-    }
-  };
-
-  const role = toast.action ? "alertdialog" : toast.tone === "danger" ? "alert" : "status";
-  const showClose = toast.duration <= 0 && !toast.action;
-  const isUndo = toast.shortcut === "undo";
-  const isApplePlatform = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-
-  return (
-    <div
-      className={cn(
-        "t-toast",
-        "toast-message",
-        `toast-${toast.tone}`,
-        toast.action && "has-action",
-        isUndo && "has-undo",
-        toast.description && "has-description",
-        showClose && "is-dismissible",
-        toast.isLoading && "is-loading",
-        toast.isOpen && "is-open",
-      )}
-      data-toast-id={toast.id}
-      role={role}
-      aria-labelledby={titleId}
-      aria-describedby={toast.description ? descriptionId : undefined}
-      aria-atomic="true"
-      tabIndex={-1}
-      onMouseEnter={() => pauseTimer("hover")}
-      onMouseLeave={() => resumeTimer("hover")}
-      onFocusCapture={() => pauseTimer("focus")}
-      onBlurCapture={handleBlur}
-      onKeyDown={handleKeyDown}
-    >
-      <span className="toast-content">
-        <span className="toast-title" id={titleId}>
-          {toast.title}
-        </span>
-        {toast.description ? (
-          <span className="toast-description" id={descriptionId}>
-            {toast.description}
-          </span>
-        ) : null}
-      </span>
-      {toast.action || showClose ? (
-        <span className="toast-controls">
-          {toast.action ? (
-            <button type="button" className="toast-action" aria-keyshortcuts={isUndo ? (isApplePlatform ? "Meta+Z" : "Control+Z") : undefined} onClick={() => void invokeAction()}>
-              {toast.action.label}
-              {isUndo ? <span className="toast-undo-shortcut" aria-hidden="true">{isApplePlatform ? "⌘Z" : "Ctrl+Z"}</span> : null}
-            </button>
-          ) : null}
-          {showClose ? (
-            <button type="button" className="toast-close" aria-label={t("关闭通知")} onClick={() => onDismiss(toast.id)}>
-              <RiCloseLine size={18} />
-            </button>
-          ) : null}
-        </span>
-      ) : null}
-    </div>
-  );
+  return <RareToastCard id={toast.id} type={toast.isLoading ? "loading" : toast.tone ?? "neutral"} title={toast.title} description={toast.description} action={toast.action ? { label: toast.action.label, onPress: invokeAction } : undefined} shortcut={toast.shortcut} onDismiss={() => onDismiss(toast.id)} />;
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   useAppLanguage();
-  const [toasts, setToasts] = useState<ToastState[]>([]);
-  const nextId = useRef(0);
-  const removeTimers = useRef(new Map<number, number>());
-  const toastsRef = useRef(toasts);
+  const toasterId = useId();
+  const records = useRef(new Map<number, ToastState>());
   const viewportRef = useRef<HTMLDivElement>(null);
-  toastsRef.current = toasts;
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [hidden, setHidden] = useState(document.hidden);
+  useEffect(() => {
+    const onVisibility = () => setHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  const returnFocus = useRef<HTMLElement | null>(null);
 
-  const removeToast = useCallback((id: number) => {
-    const timer = removeTimers.current.get(id);
-    if (timer !== undefined) window.clearTimeout(timer);
-    removeTimers.current.delete(id);
-    setToasts((current) => current.filter((toast) => toast.id !== id));
+  const forgetToast = useCallback((id: number) => {
+    records.current.delete(id);
+    const activeCard = document.activeElement?.closest<HTMLElement>("[data-toast-id]");
+    if (Number(activeCard?.dataset.toastId) === id || (records.current.size === 0 && viewportRef.current?.contains(document.activeElement))) {
+      const next = Array.from(viewportRef.current?.querySelectorAll<HTMLElement>("[data-sonner-toast][data-visible='true'] [data-toast-id]") ?? []).find((card) => records.current.has(Number(card.dataset.toastId)));
+      (next ?? returnFocus.current)?.focus({ preventScroll: true });
+    }
+    if (records.current.size === 0) { setHovered(false); setFocused(false); }
   }, []);
 
   const dismissToast = useCallback((id: number) => {
-    setToasts((current) => current.map((toast) => toast.id === id ? { ...toast, isOpen: false } : toast));
-    const previousTimer = removeTimers.current.get(id);
-    if (previousTimer !== undefined) window.clearTimeout(previousTimer);
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    removeTimers.current.set(id, window.setTimeout(() => removeToast(id), reduceMotion ? 0 : TOAST_CLOSE_MS));
-  }, [removeToast]);
+    if (!records.current.has(id)) return;
+    forgetToast(id);
+    sonner.dismiss(id);
+  }, [forgetToast]);
 
-  const openToast = useCallback((id: number) => {
-    setToasts((current) => current.map((toast) => toast.id === id ? { ...toast, isOpen: true } : toast));
-  }, []);
+  const publish = useCallback((toast: ToastState) => {
+    records.current.set(toast.id, toast);
+    sonner.custom(() => <ManagedToast toast={toast} onDismiss={dismissToast} />, {
+      id: toast.id,
+      toasterId,
+      duration: Infinity,
+      onDismiss: () => forgetToast(toast.id),
+    });
+  }, [dismissToast, forgetToast, toasterId]);
 
   const showToast = useCallback((title: ReactNode, options: ToastOptions = {}) => {
-    const id = ++nextId.current;
-    setToasts((current) => [...current, {
-      id,
-      title,
-      description: options.description,
-      tone: options.tone ?? "neutral",
-      duration: toastDuration(options),
-      action: options.action,
-      isLoading: options.isLoading ?? false,
-      shortcut: options.shortcut,
-      isOpen: false,
-      revision: 0,
-    }]);
+    const id = ++nextToastId;
+    publish({ ...options, id, title, duration: toastDuration(options), revision: 0 });
     return id;
-  }, []);
+  }, [publish]);
 
   const showUndoToast = useCallback((message: string, options: { subject?: string; onUndo: () => void | Promise<void> }) => {
     const title = <>{message}{options.subject ? <> <strong className="toast-undo-subject">“{options.subject}”</strong></> : null}</>;
-    return showToast(title, { shortcut: "undo", action: { label: t("撤回"), onPress: options.onUndo } });
+    return showToast(title, { tone: "success", shortcut: "undo", action: { label: t("撤回"), onPress: options.onUndo } });
   }, [showToast]);
 
   const updateToast = useCallback((id: number, title: ReactNode, options: ToastUpdateOptions = {}) => {
-    setToasts((current) => current.map((toast) => {
-      if (toast.id !== id) return toast;
-      const action = options.action === null ? undefined : options.action ?? toast.action;
-      const isLoading = options.isLoading ?? false;
-      return {
-        ...toast,
-        title,
-        description: options.description === null ? undefined : options.description ?? toast.description,
-        tone: options.tone ?? toast.tone,
-        duration: options.duration ?? (isLoading ? 0 : action ? ACTION_TOAST_DURATION : DEFAULT_TOAST_DURATION),
-        action,
-        isLoading,
-        shortcut: options.shortcut ?? toast.shortcut,
-        revision: toast.revision + 1,
-      };
-    }));
-  }, []);
+    const current = records.current.get(id);
+    // A late async result must never resurrect a notification the user dismissed.
+    if (!current) return;
+    const action = options.action === null ? undefined : options.action ?? current.action;
+    const isLoading = options.isLoading ?? false;
+    publish({ ...current, ...options, id, title, action, isLoading,
+      description: options.description === null ? undefined : options.description ?? current.description,
+      duration: toastDuration({ ...options, action, isLoading }), revision: current.revision + 1 });
+  }, [publish]);
 
   const clearToasts = useCallback(() => {
-    toastsRef.current.forEach((toast) => dismissToast(toast.id));
+    Array.from(records.current.keys()).forEach(dismissToast);
   }, [dismissToast]);
 
-  useEffect(() => () => {
-    removeTimers.current.forEach((timer) => window.clearTimeout(timer));
-    removeTimers.current.clear();
-  }, []);
+  useEffect(() => clearToasts, [clearToasts]);
 
   useEffect(() => {
-    const handleHotkey = (event: globalThis.KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.code === "KeyT") {
-        const toast = viewportRef.current?.querySelector<HTMLElement>("[data-toast-id]");
-        if (!toast) return;
-        event.preventDefault();
-        toast.focus({ preventScroll: true });
-        return;
-      }
-      if (event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== "z" || event.metaKey === event.ctrlKey) return;
+    const handleHotkey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== "z" || event.metaKey === event.ctrlKey) return;
       if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable], [role='textbox']")) return;
-      const actions = viewportRef.current?.querySelectorAll<HTMLButtonElement>(".toast-message.has-undo.is-open .toast-action");
-      const action = actions?.[actions.length - 1];
+      // Sonner renders newest first; hidden/exiting notifications cannot consume undo.
+      const actions = viewportRef.current?.querySelectorAll<HTMLButtonElement>("[data-sonner-toast][data-visible='true']:not([data-removed='true']) .has-undo .toast-action");
+      const action = Array.from(actions ?? []).find((button) => records.current.has(Number(button.closest<HTMLElement>("[data-toast-id]")?.dataset.toastId)));
       if (!action) return;
       event.preventDefault();
       action.click();
@@ -320,21 +170,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("keydown", handleHotkey);
   }, []);
 
-  const contextValue = useMemo(
-    () => ({ showToast, showUndoToast, updateToast, dismissToast, clearToasts }),
-    [clearToasts, dismissToast, showToast, showUndoToast, updateToast],
-  );
-
-  return (
-    <ToastContext.Provider value={contextValue}>
-      {children}
-      <div ref={viewportRef} className="toast-viewport" role="region" aria-label={t("通知")}>
-        {toasts.slice(0, MAX_VISIBLE_TOASTS).map((toast) => (
-          <Toast key={toast.id} toast={toast} onOpen={openToast} onDismiss={dismissToast} />
-        ))}
+  const contextValue = useMemo(() => ({ showToast, showUndoToast, updateToast, dismissToast, clearToasts }), [clearToasts, dismissToast, showToast, showUndoToast, updateToast]);
+  return <ToastContext.Provider value={contextValue}>
+    {children}
+    {createPortal(<StackPausedContext.Provider value={hovered || focused || hidden}>
+      <div ref={viewportRef} className="toast-portal"
+        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+        onFocusCapture={(event) => {
+          if (event.relatedTarget instanceof HTMLElement && !event.currentTarget.contains(event.relatedTarget)) returnFocus.current = event.relatedTarget;
+          setFocused(true);
+        }}
+        onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          const front = viewportRef.current?.querySelector<HTMLElement>("[data-sonner-toast][data-front='true'] [data-toast-id]");
+          if (front) { event.stopPropagation(); dismissToast(Number(front.dataset.toastId)); }
+        }}>
+        <Toaster id={toasterId} className="toast-viewport" position="top-center" swipeDirections={["top", "left", "right"]} visibleToasts={3} gap={10} expand={focused} hotkey={["altKey", "KeyT"]}
+          offset={20} mobileOffset={16} containerAriaLabel={t("通知")} customAriaLabel={t("通知")} toastOptions={{ unstyled: true, className: "toast-stack-item", duration: Infinity }} />
       </div>
-    </ToastContext.Provider>
-  );
+    </StackPausedContext.Provider>, document.body)}
+  </ToastContext.Provider>;
 }
 
 export function useToast() {

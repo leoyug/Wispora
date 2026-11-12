@@ -5,7 +5,8 @@ import type { LibraryItem } from "@/src/domain/inspiration";
 import { cn } from "@/src/lib/cn";
 import { CoverArt } from "./CoverArt";
 import { FavoriteButton } from "./FavoriteButton";
-import { getInspirationPresentation } from "./getInspirationPresentation";
+import { ReadStatusButton } from "./ReadStatusButton";
+import { getArticleCardSummary, getInspirationPresentation } from "./getInspirationPresentation";
 import { SiteIcon } from "./SiteIcon";
 import { TagSummary } from "./TagSummary";
 
@@ -15,13 +16,14 @@ interface InspirationCardProps {
   item: LibraryItem;
   onOpen: () => void;
   onTagClick: (tag: string) => void;
+  onToggleRead?: () => void;
   onToggleFavorite?: () => void;
   onContextMenu?: MouseEventHandler<HTMLElement>;
   layout?: InspirationLayout;
   masonry?: boolean;
 }
 
-export function InspirationCard({ item, onOpen, onTagClick, onToggleFavorite, onContextMenu, layout = "cards", masonry = false }: InspirationCardProps) {
+export function InspirationCard({ item, onOpen, onTagClick, onToggleFavorite, onToggleRead, onContextMenu, layout = "cards", masonry = false }: InspirationCardProps) {
   const cardRef = useRef<HTMLElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const presentation = getInspirationPresentation(item);
@@ -53,14 +55,18 @@ export function InspirationCard({ item, onOpen, onTagClick, onToggleFavorite, on
     };
   }, [masonry]);
 
-  const body = <div className="card-body"><h2>{presentation.title}</h2>{presentation.description ? <p>{presentation.description}</p> : null}</div>;
+  const description = item.kind === "article" && layout === "cards" && item.descriptionSource !== "user"
+    ? getArticleCardSummary(presentation.description)
+    : presentation.description;
+  const body = <div className="card-body"><h2>{presentation.title}</h2>{description ? <p>{description}</p> : null}</div>;
   const cover = <div className="card-cover-wrap"><CoverArt item={item} /></div>;
   const tags = <TagSummary key={item.id} className="card-tags" tags={item.tags} onTagClick={onTagClick} />;
   const followContent = <div className="follow-profile"><SiteIcon item={item} variant="avatar" />{body}</div>;
 
   return (
     <div ref={shellRef} className="inspiration-card-shell">
-      <article ref={cardRef} className={cn("inspiration-card", `kind-${item.kind}`, layout === "compact" && "is-compact")} tabIndex={0} onClick={onOpen} onContextMenu={onContextMenu} onKeyDown={(event) => {
+      <article ref={cardRef} className={cn("inspiration-card", `kind-${item.kind}`, layout === "compact" && "is-compact")} tabIndex={0} onClick={(event) => { if (!(event.target instanceof Element && event.target.closest("button"))) onOpen(); }} onContextMenu={onContextMenu} onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
         if (event.key === "Enter") onOpen();
         if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
           event.preventDefault();
@@ -71,6 +77,7 @@ export function InspirationCard({ item, onOpen, onTagClick, onToggleFavorite, on
         <header className="card-source-row">
           <div><SiteIcon item={item} /><a className="card-url-link" href={item.url} target="_blank" rel="noreferrer" title={item.sourceLabel} onClick={(event) => event.stopPropagation()}><span className="card-url-text">{presentation.sourceLabel}</span><RiArrowRightUpLine size={14} aria-hidden="true" /></a></div>
           <div className="source-actions">
+            {item.kind === "article" && onToggleRead ? <ReadStatusButton isRead={item.isRead} onToggle={onToggleRead} /> : null}
             {onToggleFavorite && <FavoriteButton isFavorite={item.isFavorite} onToggle={onToggleFavorite} />}
           </div>
         </header>

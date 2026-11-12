@@ -2,7 +2,7 @@ import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDel
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FloatingAddMenu } from "@/src/components/inspiration/FloatingAddMenu";
-import type { ExtensionRequest } from "@/src/capture/types";
+import type { CaptureResponse, ExtensionRequest } from "@/src/capture/types";
 import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
 import { AppShell } from "@/src/components/layout/AppShell";
@@ -18,7 +18,7 @@ import { useToast } from "@/src/components/ui/Toast";
 import { seedDevelopmentData } from "@/src/db/developmentSeed";
 import { inspirationRepository, type DeletedSavedItem } from "@/src/db/repository";
 import { type LibraryItem, type LibraryScope, type SavedItemKind, type UpdateSavedItemInput } from "@/src/domain/inspiration";
-import { isSavedItemProcessed } from "@/src/domain/inspiration";
+import { isSavedItemProcessed, isUnreadArticle, readLaterViewId } from "@/src/domain/inspiration";
 import { getAdjacentSearchPreviewId, createSearchPresentations, createLibrarySearchIndex, queryLibraryItems, type LibrarySortOrder } from "@/src/search/librarySearch";
 import { readSearchFields, readSearchScope, readSearchTimeRange, searchConditionCount, searchFieldLabels, searchTimeLabels, type LibraryQuery } from "@/src/search/searchQuery";
 import { searchHistoryRepository } from "@/src/search/searchHistory";
@@ -143,27 +143,29 @@ export function LibraryPage() {
   const tagId = (name: string) => allTags.find((tag) => tag.name === name)?.id ?? `legacy-tag:${name}`;
 
   const currentView = views.find((view) => view.id === activeSavedView) ?? null;
+  const isReadLaterView = activeSavedView === readLaterViewId;
   const searchIndex = useMemo(() => {
     try { return createLibrarySearchIndex(items); }
     catch { return null; }
   }, [items, indexRevision]);
   const effectiveTags = useMemo(() => [...new Set([...selectedTags, ...(currentView?.tagIds ?? [])])], [selectedTags, currentView]);
   const visibleItems = useMemo(() => {
-    try { return queryLibraryItems(items, searchIndex, { query, scope: activeScope, tagIds: effectiveTags, fields: selectedSearchFields, timeRange: selectedSearchTime, sort: sortOrder }); }
+    try { return queryLibraryItems(items, searchIndex, { query, scope: activeScope, tagIds: effectiveTags, fields: selectedSearchFields, timeRange: selectedSearchTime, unreadArticlesOnly: isReadLaterView, sort: sortOrder }); }
     catch { return []; }
-  }, [activeScope, effectiveTags, items, query, searchIndex, selectedSearchFields, selectedSearchTime, sortOrder]);
+  }, [activeScope, effectiveTags, isReadLaterView, items, query, searchIndex, selectedSearchFields, selectedSearchTime, sortOrder]);
   const hasLibraryItems = items.some((item) => !item.archivedAt);
-  const hasScopeItems = items.some((item) => !item.archivedAt && (activeScope === "all" || (activeScope === "favorites" ? item.isFavorite : activeScope === "unprocessed" ? !isSavedItemProcessed(item) : item.kind === activeScope)));
+  const hasScopeItems = items.some((item) => !item.archivedAt && (!isReadLaterView || isUnreadArticle(item)) && (activeScope === "all" || (activeScope === "favorites" ? item.isFavorite : activeScope === "unprocessed" ? !isSavedItemProcessed(item) : item.kind === activeScope)));
   const emptyStateKind = !hasLibraryItems ? "library" : !hasScopeItems ? "scope" : !searchIndex && query.trim() ? "search-unavailable" : "filtered";
   const draftScope = searchSession?.scope ?? activeScope;
   const draftFields = searchSession?.fields ?? selectedSearchFields;
   const draftTags = searchSession?.tagIds ?? effectiveTags;
   const draftTime = searchSession?.timeRange ?? selectedSearchTime;
+  const draftUnreadArticlesOnly = searchSession?.savedViewId === readLaterViewId;
   const searchItems = useCallback((draft: string) => {
-    const options = { query: draft, scope: draftScope, fields: draftFields, tagIds: draftTags, timeRange: draftTime };
+    const options = { query: draft, scope: draftScope, fields: draftFields, tagIds: draftTags, timeRange: draftTime, unreadArticlesOnly: draftUnreadArticlesOnly };
     const matches = queryLibraryItems(items, searchIndex, { ...options, sort: draft.trim() ? "relevance" : "newest" });
     return { items: matches, presentations: createSearchPresentations(matches, searchIndex, draft, draftFields) };
-  }, [items, searchIndex, draftScope, draftFields, draftTags, draftTime]);
+  }, [items, searchIndex, draftScope, draftFields, draftTags, draftTime, draftUnreadArticlesOnly]);
   const viewTitle = currentView ? currentView.isSystem ? t(currentView.name) : currentView.name : (activeScope === "all" ? t("全部内容") : activeScope === "favorites" ? t("星标") : activeScope === "unprocessed" ? t("未处理") : t(kindLabels[activeScope]));
   const previewing = searchSession?.mode === "preview";
   const selectedItem = items.find((item) => item.id === (previewing ? searchSession.previewId : selectedId) && !item.archivedAt) ?? null;
@@ -249,6 +251,11 @@ export function LibraryPage() {
     showToast(t("快捷视图已保存"), { tone: "success" });
   };
   const toggleFavorite = (id: string) => { void inspirationRepository.toggleFavorite(id); };
+  const toggleRead = (id: string) => {
+    void inspirationRepository.toggleArticleRead(id).catch(() => {
+      showToast(t("未能更新阅读状态，请重试。"), { tone: "danger" });
+    });
+  };
   const copyLink = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -315,7 +322,10 @@ export function LibraryPage() {
     }
     if (!selectedId || visibleItems.length === 0) return;
     const index = visibleItems.findIndex((item) => item.id === selectedId);
-    const next = visibleItems[(index + direction + visibleItems.length) % visibleItems.length];
+    const nextIndex = index < 0
+      ? direction === 1 ? 0 : visibleItems.length - 1
+      : (index + direction + visibleItems.length) % visibleItems.length;
+    const next = visibleItems[nextIndex];
     if (next) setSelectedId(next.id);
   }
 
@@ -334,7 +344,8 @@ export function LibraryPage() {
     setSelectedId(null);
     requestAnimationFrame(() => {
       window.scrollTo({ top: detailScrollRef.current });
-      detailTriggerRef.current?.focus({ preventScroll: true });
+      const trigger = detailTriggerRef.current;
+      (trigger?.isConnected ? trigger : searchRef.current)?.focus({ preventScroll: true });
     });
   }
 
@@ -348,17 +359,23 @@ export function LibraryPage() {
       permissionRequest,
       inspirationRepository.createSavedItem({ kind, url, description, captureMethod: "manual-url" }),
     ]);
-    if (!result.created) {
-      if (permissionGranted) await browser.permissions.remove({ origins: [permissionPattern] });
-      return false;
-    }
+    const refreshArticleCover = !result.created && kind === "article" && !result.item.cover.isUserSelected;
     if (permissionGranted) {
       try {
-        await browser.runtime.sendMessage({ type: "capture:remote", itemId: result.item.id, url, permissionPattern } satisfies ExtensionRequest);
+        if (result.created || refreshArticleCover) {
+          const response = await browser.runtime.sendMessage({
+            type: "capture:remote", itemId: result.item.id, url, permissionPattern, refreshArticleCover,
+          } satisfies ExtensionRequest) as CaptureResponse;
+          if (refreshArticleCover && response.ok && response.coverUpdated) {
+            showToast(t("文章封面已更新"), { tone: "success" });
+            return true;
+          }
+        }
       } finally {
         await browser.permissions.remove({ origins: [permissionPattern] }).catch(() => false);
       }
     }
+    if (!result.created) return false;
     void browser.runtime.sendMessage({ type: "ai:process" } satisfies ExtensionRequest);
     changeScope(kind);
     const addedItem = await inspirationRepository.getSavedItem(result.item.id);
@@ -405,7 +422,7 @@ export function LibraryPage() {
     setQuery("");
     setSelectedTags([]);
     setSortOrder("newest");
-    setActiveSavedView(null);
+    if (!isReadLaterView) setActiveSavedView(null);
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0 });
       searchRef.current?.focus({ preventScroll: true });
@@ -468,10 +485,11 @@ export function LibraryPage() {
           {liveItems === undefined ? <span className="sr-only">{t("正在打开本地收藏库")}</span> : null}
           <div className="t-skel-skeleton is-pulsing"><LibrarySkeleton /></div>
           <div className="t-skel-content">
-            {liveItems !== undefined ? visibleItems.length ? (layoutMode === "list" || layoutMode === "compact-list") ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} variant={layoutMode === "compact-list" ? "compact" : "detail"} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} />)}</div> : <LibraryEmptyState
+            {liveItems !== undefined ? visibleItems.length ? (layoutMode === "list" || layoutMode === "compact-list") ? <div className="inspiration-list">{visibleItems.map((item) => <InspirationListItem key={item.id} item={item} variant={layoutMode === "compact-list" ? "compact" : "detail"} onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} onToggleRead={() => toggleRead(item.id)} />)}</div> : <div className={cn("inspiration-grid", layoutMode === "compact" && "is-compact")}>{visibleItems.map((item) => <InspirationCard key={item.id} item={item} layout={layoutMode} masonry onOpen={() => openDetail(item.id)} onContextMenu={(event) => openItemContextMenu(event, item.id)} onTagClick={(tag) => { setSelectedTags((current) => current.includes(tagId(tag)) ? current : [...current, tagId(tag)]); setActiveSavedView(null); }} onToggleFavorite={() => toggleFavorite(item.id)} onToggleRead={() => toggleRead(item.id)} />)}</div> : <LibraryEmptyState
               kind={emptyStateKind}
               scope={activeScope}
               scopeTitle={viewTitle}
+              isReadLaterView={isReadLaterView}
               onAdd={() => setImportKind(emptyStateKind !== "library" && (activeScope === "article" || activeScope === "follow") ? activeScope : "website")}
               onImport={() => setBookmarkImportOpen(true)}
               onShowAll={() => { clearConditions(); changeScope("all"); }}
@@ -486,7 +504,7 @@ export function LibraryPage() {
       <DataImportDialog isOpen={bookmarkImportOpen} onClose={() => setBookmarkImportOpen(false)} onImport={(urls, enrichMetadata) => importItems("website", urls, enrichMetadata)} />
       {contextMenu && contextItem ? <ContextMenu label={tf("{title} 操作菜单", { title: contextItem.title })} position={contextMenu} actions={contextActions} onClose={closeItemContextMenu} /> : null}
       {searchSession?.mode === "search" ? <LibrarySearchDialog draft={searchSession} onDraftChange={(draft) => setSearchSession((current) => current ? { ...current, ...draft } : null)} onClose={cancelSearch} onSubmit={submitSearch} onPreview={(id, previewIds) => { searchPosition.current.activeId = id; setSearchSession((current) => current ? { ...current, mode: "preview", previewId: id, previewIds } : null); }} search={searchItems} ready={liveItems !== undefined && liveTags !== undefined && liveViews !== undefined} tags={allTags} onRetry={() => setIndexRevision((value) => value + 1)} libraryEmpty={!items.some((item) => !item.archivedAt)} position={searchPosition} /> : null}
-      <DetailDialog item={selectedItem} initialMode={previewing ? "details" : detailIntent.mode} initialEditing={previewing ? false : detailIntent.editing} initialEditFocus={previewing ? undefined : detailIntent.editFocus} returnToSearch={previewing} onClose={closeDetail} onNavigate={navigateDetail} onUpdate={updateItem} onDelete={async () => { if (!selectedItem) return; await deleteItem(selectedItem.id); closeDetail(); }} siteItemCount={selectedSiteItemCount} onShowSite={previewing ? undefined : () => { if (!selectedItem) return; setQuery(selectedItem.siteHost); setSearchFields(["all"]); setSortOrder("relevance"); setActiveScope("all"); setSelectedTags([]); closeDetail(); }} />
+      <DetailDialog item={selectedItem} initialMode={previewing ? "details" : detailIntent.mode} initialEditing={previewing ? false : detailIntent.editing} initialEditFocus={previewing ? undefined : detailIntent.editFocus} returnToSearch={previewing} onClose={closeDetail} onToggleFavorite={toggleFavorite} onToggleRead={toggleRead} onNavigate={navigateDetail} onUpdate={updateItem} onDelete={async () => { if (!selectedItem) return; await deleteItem(selectedItem.id); closeDetail(); }} siteItemCount={selectedSiteItemCount} onShowSite={previewing ? undefined : () => { if (!selectedItem) return; setQuery(selectedItem.siteHost); setSearchFields(["all"]); setSortOrder("relevance"); setActiveScope("all"); setActiveSavedView(null); setSelectedTags([]); closeDetail(); }} />
     </AppShell>
   );
 }

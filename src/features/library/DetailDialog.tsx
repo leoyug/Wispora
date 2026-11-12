@@ -2,8 +2,10 @@ import { SmoothCorners } from "@lisse/react";
 import { RiArrowLeftLine, RiArrowRightLine, RiCloseLine, RiDeleteBinLine, RiEditLine, RiExternalLinkLine, RiImageLine, RiRefreshLine, RiSparkling2Line } from "@remixicon/react";
 import { reveal } from "cube-motion";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { CoverArt } from "@/src/components/inspiration/CoverArt";
+import { FavoriteButton } from "@/src/components/inspiration/FavoriteButton";
+import { ReadStatusButton } from "@/src/components/inspiration/ReadStatusButton";
 import { SiteIcon } from "@/src/components/inspiration/SiteIcon";
 import { Badge } from "@/src/components/ui/Badge";
 import { Button } from "@/src/components/ui/Button";
@@ -18,10 +20,13 @@ import type { LibraryItem, SavedItemKind, UpdateSavedItemInput } from "@/src/dom
 import { cn } from "@/src/lib/cn";
 import { t, tf } from "@/src/i18n/ui";
 import { formatUiDate } from "@/src/i18n/date";
+import { SnapshotReader } from "./SnapshotReader";
 
 interface DetailDialogProps {
   item: LibraryItem | null;
   onClose: () => void;
+  onToggleFavorite: (id: string) => void;
+  onToggleRead: (id: string) => void;
   onNavigate: (direction: -1 | 1) => void;
   onUpdate: (input: UpdateSavedItemInput) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -45,7 +50,7 @@ const iconBackgroundOptions = [
   { value: "dark", label: "深底" },
 ] as const;
 
-export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, siteItemCount, onShowSite, returnToSearch = false, initialMode = "details", initialEditing = false, initialEditFocus }: DetailDialogProps) {
+export function DetailDialog({ item, onClose, onToggleFavorite, onToggleRead, onNavigate, onUpdate, onDelete, siteItemCount, onShowSite, returnToSearch = false, initialMode = "details", initialEditing = false, initialEditFocus }: DetailDialogProps) {
   const snapshot = useLiveQuery(() => item ? inspirationRepository.getSnapshot(item.id) : undefined, [item?.id]);
   const tagOptions = useLiveQuery(() => inspirationRepository.listTags(), []) ?? [];
   const [mode, setMode] = useState<DetailMode>("details");
@@ -65,7 +70,7 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
     if (item?.id) void inspirationRepository.markOpened(item.id).catch(() => undefined);
   }, [item?.id]);
 
-  useEffect(() => {
+  const initializeDetail = useEffectEvent(() => {
     if (!item) return;
     setMode(initialMode);
     setIsEditing(initialEditing);
@@ -78,7 +83,11 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
     setCoverBlob(undefined);
     setCoverPasteError("");
     setAiRetrying(false);
-  }, [initialEditing, initialMode, item]);
+  });
+
+  useEffect(() => {
+    initializeDetail();
+  }, [initialEditing, initialMode, initialEditFocus, item?.id]);
 
   useEffect(() => {
     if (!item || mode !== "details" || isEditing) return;
@@ -150,11 +159,22 @@ export function DetailDialog({ item, onClose, onNavigate, onUpdate, onDelete, si
           <header className={cn("detail-header", returnToSearch && mode === "details" && "has-search-return")}>
             {returnToSearch && mode === "details" ? <Button size="sm" variant="ghost" className="detail-return" aria-label={t("返回搜索")} onPress={onClose}><RiArrowLeftLine size={15} aria-hidden="true" /><span className="detail-return-label">{t("返回搜索")}</span></Button> : <Button size="icon" variant="ghost" aria-label={mode === "details" ? t("关闭详情") : t("返回详情")} onPress={() => mode === "details" ? onClose() : setMode("details")}><RiCloseLine size={19} /></Button>}
             <span className="detail-host" title={item.sourceLabel}>{mode === "snapshot" ? t("本地正文快照") : item.sourceLabel}</span>
-            {mode === "details" ? isEditing ? <div className="detail-edit-controls"><Button variant="ghost" size="sm" onPress={cancelEdit}>{t("取消")}</Button><Button variant="primary" size="sm" onPress={() => void save()}>{t("保存修改")}</Button></div> : <a className="button button-primary button-sm" href={item.url} target="_blank" rel="noreferrer">{t("打开原网页 ")}<RiExternalLinkLine size={15} /></a> : <Button variant="primary" size="sm" onPress={() => setMode("details")}>{t("返回详情")}</Button>}
+            {mode === "details" ? isEditing ? <div className="detail-edit-controls"><Button variant="ghost" size="sm" onPress={cancelEdit}>{t("取消")}</Button><Button variant="primary" size="sm" onPress={() => void save()}>{t("保存修改")}</Button></div> : <div className="detail-header-actions">
+              {item.kind === "article" ? <ReadStatusButton isRead={item.isRead} onToggle={() => onToggleRead(item.id)} showLabel /> : null}
+              <FavoriteButton isFavorite={item.isFavorite} onToggle={() => onToggleFavorite(item.id)} showLabel />
+              <a className="button button-primary button-sm" href={item.url} target="_blank" rel="noreferrer">{t("打开原网页 ")}<RiExternalLinkLine size={15} aria-hidden="true" /></a>
+            </div> : <Button variant="primary" size="sm" onPress={() => setMode("details")}>{t("返回详情")}</Button>}
           </header>
           <div ref={scrollRef} className="detail-scroll">
             {mode === "snapshot" ? (
-              <article className="snapshot-reader" data-detail-reveal><span>{snapshot?.byline || item.siteHost} · {snapshotLabel}</span><DialogTitle>{snapshot?.title || item.title}</DialogTitle>{snapshot?.cleanHtml ? <div className="snapshot-content" dangerouslySetInnerHTML={{ __html: snapshot.cleanHtml }} /> : <p className="snapshot-empty">{t("这个收藏项还没有可阅读的正文快照。")}</p>}</article>
+              <SnapshotReader
+                url={item.url}
+                title={snapshot?.title || item.title}
+                source={snapshot?.byline || item.siteHost}
+                status={snapshotLabel}
+                html={snapshot?.cleanHtml ?? ""}
+                isArticle={item.kind === "article"}
+              />
             ) : mode === "image" ? (
               <div className="image-viewer" data-detail-reveal><CoverArt item={item} large fit="contain" /><p>{item.title}</p></div>
             ) : (

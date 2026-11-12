@@ -16,12 +16,11 @@ Wispora 是面向设计与开发工作的本地优先灵感库浏览器扩展，
 - 使用 Figma 原始矢量资产，保留 Display-P3 品牌橙与字标轮廓。
 - 保留原有收藏库和设置，继续支持旧备份导入；新导出文件使用 Wispora 名称。
 
-## 当前版本：V0.8.1
+## 当前版本：V0.8.2
 
-- AI 设置新增 Gemini、Qwen、Kimi 与 OpenRouter 预设，支持获取实时模型列表、手动模型 ID 与连接测试；获取模型不保存表单或 Key。
-- 统一设置布局、搜索、标签、菜单、表单弹窗与书签导入组件，删除无入口的旧弹窗和控件。
-- 分离设计系统变量与样式，补齐颜色、基础变量、组件状态及中英文预览，统一侧栏尺寸来源。
-- 保持本地优先与可选 AI；完整改动与 V1 发布门禁见 [ROADMAP.md](ROADMAP.md)。
+- 改善文章快照阅读体验，支持代码语法高亮、复制代码和横向滚动表格，脚注链接使用右上箭头。
+- 完善文章封面采集、阅读状态与快照正文搜索。
+- 更新共享 Toast 的堆叠和撤回交互。发布门禁见 [ROADMAP.md](ROADMAP.md)。
 
 ## 项目文档
 
@@ -56,3 +55,7 @@ AI API Key 和 Provider 设置不包含在备份中；迁移到新的浏览器�
 ```bash
 pnpm check
 ```
+
+## 开源致谢 / Credits
+
+Toast 组件改编自 [Rare UI](https://rareui.com)，Copyright © 2026 Swami Malode，许可见 [Rare UI license](docs/licenses/rare-ui.txt)。

@@ -27,7 +27,7 @@ const backupSchema = z.object({
     canonicalUrl: z.string().url(), originalUrl: z.string().url(),
     title: z.string(), siteHost: z.string(), description: z.string(),
     tagIds: z.array(z.string()), cover: z.object({ background: z.string(), foreground: z.string(), label: z.string(), motif: z.enum(["type", "grid", "orb"]), blob: z.string().optional() }).passthrough(),
-    isFavorite: z.boolean(), snapshotStatus: z.enum(["pending", "complete", "partial", "failed"]),
+    isFavorite: z.boolean(), isRead: z.boolean().optional(), snapshotStatus: z.enum(["pending", "complete", "partial", "failed"]),
     aiStatus: z.enum(["pending", "complete", "failed"]), createdAt: z.number(), updatedAt: z.number(),
     snapshotId: z.string().optional(),
     siteIconAutoBackground: z.literal("dark").optional(),

@@ -33,6 +33,27 @@ afterEach(async () => {
 });
 
 describe("InspirationRepository", () => {
+  it("toggles reading status only for articles and starts reclassified items unread", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/reading";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    expect(item.isRead).toBeUndefined();
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBe(true);
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBe(false);
+
+    await repository.toggleArticleRead(item.id);
+    const edit = { title: item.title, description: "", tags: [] };
+    await repository.updateSavedItem(item.id, { ...edit, kind: "website" });
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBeUndefined();
+    await repository.updateSavedItem(item.id, { ...edit, kind: "article" });
+    expect((await repository.getSavedItem(item.id))?.isRead).toBeUndefined();
+    database.close();
+  });
+
   it("records real detail opens without changing the saved or edited timestamp", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);
@@ -197,6 +218,54 @@ describe("InspirationRepository", () => {
     expect(item.snapshotStatus).toBe("pending");
     expect(await upgraded.snapshots.count()).toBe(0);
     upgraded.close();
+  });
+
+  it("stores a clean X article title and lets AI fill a title-only preview", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://x.com/example/status/123";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({
+      url,
+      canonicalUrl: url,
+      title: "Example (@example) on X",
+      documentTitle: "(5) X 上的 Example：“How I work with Agents” / X",
+      description: "How I work with Agents https://t.co/example",
+    }));
+
+    expect(await database.savedItems.get(item.id)).toMatchObject({
+      title: "How I work with Agents",
+      description: "",
+    });
+    const [task] = await repository.listRunnableAiTasks();
+    await repository.markAiStarted(task!.id);
+    await repository.completeAiTask(task!.id, { description: "The article explains how to delegate work to agents.", tags: ["AI"] });
+    expect(await database.savedItems.get(item.id)).toMatchObject({
+      description: "The article explains how to delegate work to agents.",
+      descriptionSource: "ai",
+    });
+    database.close();
+  });
+
+  it("refreshes an existing article cover without replacing the snapshot or a manually selected cover", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/article";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({ ogImage: "https://example.com/brand.png" }));
+    const snapshot = await repository.getSnapshot(item.id);
+    const image = "https://example.com/article.webp";
+    expect(await repository.refreshArticleCover(item.id, url, image)).toBe(true);
+    expect((await repository.getSavedItem(item.id))?.cover.image).toBe(image);
+    expect(await repository.getSnapshot(item.id)).toEqual(snapshot);
+
+    await repository.updateSavedItem(item.id, {
+      title: "A captured article", description: "Page description", tags: [],
+      coverBlob: new Blob(["manual"], { type: "image/png" }),
+    });
+    expect(await repository.refreshArticleCover(item.id, url, image)).toBe(false);
+    expect((await repository.getSavedItem(item.id))?.cover.isUserSelected).toBe(true);
+    database.close();
   });
 
   it("persists a sanitized snapshot and preserves a user description", async () => {

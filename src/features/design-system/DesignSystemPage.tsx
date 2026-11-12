@@ -9,6 +9,7 @@ import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
 import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
 import { LibraryLayoutSelect, type LibraryLayoutMode } from "@/src/components/inspiration/LibraryLayoutSelect";
+import { SnapshotReader } from "@/src/features/library/SnapshotReader";
 import { LibraryEmptyState } from "@/src/features/library/LibraryEmptyState";
 import { SavedViewReorderList } from "@/src/components/layout/SavedViewReorderList";
 import { SidebarIcon } from "@/src/components/layout/SidebarIcon";
@@ -51,6 +52,11 @@ function PreviewSection({ title, description, children }: { title: string; descr
 
 export function DesignSystemPage({ onBack }: { onBack: () => void }) {
   const [previewSearch, setPreviewSearch] = useState("");
+  const [readPreviewIds, setReadPreviewIds] = useState<string[]>([]);
+  const previewItems = inspirationItems.slice(0, 3).map((item) => ({ ...item, isRead: readPreviewIds.includes(item.id) }));
+  const togglePreviewRead = (id: string) => {
+    setReadPreviewIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  };
   const [previewLayout, setPreviewLayout] = useState<LibraryLayoutMode>("cards");
   const [previewChipKeys, setPreviewChipKeys] = useState(new Set<string>(["title"]));
   const [checkedFields, setCheckedFields] = useState<string[]>(["title"]);
@@ -60,7 +66,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => observer.disconnect();
   }, []);
-  const { showToast, showUndoToast, updateToast } = useToast();
+  const { showToast, showUndoToast, updateToast, clearToasts } = useToast();
   const [previewViews, setPreviewViews] = useState<LibrarySavedView[]>([
     { id: "preview-read-later", name: "稍后阅读", isSystem: true, scope: "article", tagIds: [], tags: [], sortOrder: 0, createdAt: 0, updatedAt: 0 },
     { id: "preview-design", name: "设计灵感", isSystem: false, scope: "website", tagIds: ["design"], tags: ["设计灵感"], sortOrder: 1, createdAt: 0, updatedAt: 0 },
@@ -190,11 +196,22 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
 
         <PreviewSection title={t("内容卡片")} description={t("卡片与紧凑卡片复用领域卡片，列表使用 Figma 列表组件，并根据网站、文章和关注源调整内容结构。")}>
           <div className="card-layout-specimens">
-            <div><span>{t("卡片排列")}</span><div className="card-preview-grid">{inspirationItems.slice(0, 3).map((item) => <InspirationCard key={item.id} item={item} layout="cards" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
-            <div><span>{t("紧凑卡片")}</span><div className="compact-preview-grid">{inspirationItems.slice(0, 3).map((item) => <InspirationCard key={item.id} item={item} layout="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
-            <div><span>{t("紧凑列表")}</span><div className="inspiration-list">{inspirationItems.slice(0, 3).map((item) => <InspirationListItem key={item.id} item={item} variant="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
-            <div><span>{t("列表排列")}</span><div className="inspiration-list">{inspirationItems.slice(0, 3).map((item) => <InspirationListItem key={item.id} item={item} onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
+            <div><span>{t("卡片排列")}</span><div className="card-preview-grid">{previewItems.map((item) => <InspirationCard key={item.id} item={item} layout="cards" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} onToggleRead={() => togglePreviewRead(item.id)} />)}</div></div>
+            <div><span>{t("紧凑卡片")}</span><div className="compact-preview-grid">{previewItems.map((item) => <InspirationCard key={item.id} item={item} layout="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} onToggleRead={() => togglePreviewRead(item.id)} />)}</div></div>
+            <div><span>{t("紧凑列表")}</span><div className="inspiration-list">{previewItems.map((item) => <InspirationListItem key={item.id} item={item} variant="compact" onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} />)}</div></div>
+            <div><span>{t("列表排列")}</span><div className="inspiration-list">{previewItems.map((item) => <InspirationListItem key={item.id} item={item} onOpen={() => undefined} onTagClick={() => undefined} onToggleFavorite={() => undefined} onToggleRead={() => togglePreviewRead(item.id)} />)}</div></div>
           </div>
+        </PreviewSection>
+
+        <PreviewSection title={t("正文快照")} description={t("已标注语言的代码在浅色和深色主题中高亮，纯文本保留原样。")}>
+          <SnapshotReader
+            url="https://example.com/code"
+            title={t("正文快照")}
+            source="example.com"
+            status={t("完整")}
+            html={'<pre><code class="language-css">.example { color: inherit; }\n/* The current theme supplies the text color. */</code></pre><pre><code class="language-jsx">export const Example = () =&gt; &lt;span className="example"&gt;Wispora&lt;/span&gt;;</code></pre><pre>Plain text</pre>'}
+            isArticle
+          />
         </PreviewSection>
 
         <PreviewSection title={t("简报")} description={t("往期封面卡片复用 Card、CoverArt 与现有 token；红点只表示未读。此处使用演示内容。")}>
@@ -209,7 +226,7 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
           <FloatingAddMenu placement="preview" onSelect={() => undefined} />
         </PreviewSection>
 
-        <PreviewSection title={t("Toast 通知")} description={t("顶部通知支持标题、补充说明、操作、队列、异步状态更新与持续型通知关闭；悬停、聚焦和页面进入后台时暂停计时。")}>
+        <PreviewSection title={t("Toast 通知")} description={t("Rare UI 通知以最新消息为首，最多显示三层；悬停或聚焦展开，暂停计时，支持滑动关闭、撤回和异步状态更新。")}>
           <div className="component-stack">
             <div className="component-row">
               <Button variant="secondary" onPress={() => showToast(t("链接已复制"), { tone: "neutral" })}>{t("默认")}</Button>
@@ -223,6 +240,13 @@ export function DesignSystemPage({ onBack }: { onBack: () => void }) {
               <Button variant="secondary" onPress={() => showUndoToast(t("已删除收藏项"), { subject: "Rows is an unapologetically creative design collection", onUndo: () => { showToast(t("已撤回删除"), { tone: "success" }); } })}>{t("删除撤回")}</Button>
               <Button variant="secondary" onPress={() => showUndoToast(t("已添加 4 个收藏项"), { onUndo: () => { showToast(t("已撤回批量添加"), { tone: "success" }); } })}>{t("批量撤回")}</Button>
               <Button variant="secondary" onPress={previewLoadingToast}>{t("异步状态")}</Button>
+              <Button variant="secondary" onPress={() => {
+                clearToasts();
+                showToast(t("链接已复制"), { tone: "success", duration: 10000 });
+                showToast(t("部分网站未补全"), { description: t("收藏已保存，可稍后重新整理。"), tone: "warning", duration: 10000 });
+                showUndoToast(t("已添加 4 个收藏项"), { onUndo: () => { showToast(t("已撤回批量添加"), { tone: "success" }); } });
+              }}>{t("堆叠通知")}</Button>
+              <Button variant="secondary" onPress={clearToasts}>{t("清空通知")}</Button>
             </div>
           </div>
         </PreviewSection>

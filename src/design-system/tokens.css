@@ -139,12 +139,8 @@
   --modal-ease: var(--ease-smooth-out);
   --toast-open: var(--duration-medium);
   --toast-close: var(--duration-fast);
-  --toast-distance: 16px;
-  --toast-blur: 2px;
-  --toast-scale: .97;
   --toast-ease: var(--ease-smooth-out);
   --toast-width: 440px;
-  --toast-stack-gap: 8px;
   --shadow-search-focus: inset 0 0 0 2px var(--color-accent), 0 10px 34px -25px rgb(18 18 18 / 30%);
   --shadow-tooltip: 0 6px 18px -10px rgb(18 18 18 / 55%);
   --shadow-floating-trigger: 0 1px 2px rgb(0 0 0 / 8%), 0 1px 3px rgb(0 0 0 / 5%);
@@ -155,7 +151,7 @@
   --shadow-toolbar-control-hover: var(--shadow-hairline), 0 3px 8px -6px rgb(18 18 18 / 16%);
   --shadow-card-lift: 0 2px 5px rgb(9 10 11 / 5%), 0 12px 28px -18px rgb(9 10 11 / 20%);
   --shadow-window: 0 1px 2px rgb(18 18 18 / 3%), 0 2px 6px rgb(18 18 18 / 4%), 0 32px 64px -34px rgb(18 18 18 / 32%);
-  --shadow-toast: 0 4px 12px -2px rgb(18 18 18 / 12%), 0 24px 64px -18px rgb(18 18 18 / 34%);
+  --shadow-toast: 0 1px 2px rgb(0 0 0 / 5%), 0 2px 10px rgb(0 0 0 / 6%);
 }
 
 /* Display-P3 is the canonical palette. The @theme values above are sRGB fallbacks. */
@@ -221,7 +217,7 @@
     --shadow-control-raised: 0 1px 2px color(display-p3 0.07059 0.07059 0.07059 / 9%);
     --shadow-switch-thumb: 0 2px 6px color(display-p3 0.07059 0.07059 0.07059 / 5%), 0 4px 42px color(display-p3 0.07059 0.07059 0.07059 / 6%);
     --shadow-toolbar-control-hover: var(--shadow-hairline), 0 3px 8px -6px color(display-p3 0.07059 0.07059 0.07059 / 16%);
-    --shadow-toast: 0 4px 12px -2px color(display-p3 0.07059 0.07059 0.07059 / 12%), 0 24px 64px -18px color(display-p3 0.07059 0.07059 0.07059 / 34%);
+    --shadow-toast: 0 1px 2px color(display-p3 0 0 0 / 5%), 0 2px 10px color(display-p3 0 0 0 / 6%);
   }
 }
 

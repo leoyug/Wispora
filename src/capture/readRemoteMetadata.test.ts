@@ -24,6 +24,20 @@ describe("readRemoteMetadata", () => {
     expect(result.cleanHtml).toBe("");
   });
 
+  it("distinguishes an article header cover from the site sharing image and author avatar", () => {
+    const result = readRemoteMetadata(`
+      <meta property="og:image" content="/brand.png">
+      <article><header>
+        <h1>A <em>prompting</em> guide</h1>
+        <img src="/avatar.jpg" alt="Author">
+      </header>
+      <figure><div><img src="../guide.webp" alt="A prompting guide"></div></figure>
+      <img src="/example.webp" alt="An example"></article>
+    `, "https://example.com/blog/guide/");
+    expect(result.articleCover).toBe("https://example.com/blog/guide.webp");
+    expect(result.ogImage).toBe("https://example.com/brand.png");
+  });
+
   it("uses safe fallbacks when optional metadata is absent", () => {
     const result = readRemoteMetadata("<html><body></body></html>", "https://example.com/path");
     expect(result.title).toBe("example.com");

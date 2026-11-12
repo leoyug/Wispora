@@ -1,4 +1,4 @@
-import { RiBookmarkLine, RiCheckboxCircleLine, RiFolderOpenLine, RiSearchLine } from "@remixicon/react";
+import { RiBookmarkLine, RiBookLine, RiCheckboxCircleLine, RiFolderOpenLine, RiSearchLine } from "@remixicon/react";
 import type { LibraryScope } from "@/src/domain/inspiration";
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/Button";
@@ -10,6 +10,7 @@ interface LibraryEmptyStateProps {
   kind: LibraryEmptyStateKind;
   scope: LibraryScope;
   scopeTitle: string;
+  isReadLaterView?: boolean;
   onAdd: () => void;
   onImport: () => void;
   onShowAll: () => void;
@@ -17,7 +18,7 @@ interface LibraryEmptyStateProps {
   onSearch: () => void;
 }
 
-export function LibraryEmptyState({ kind, scope, scopeTitle, onAdd, onImport, onShowAll, onClear, onSearch }: LibraryEmptyStateProps) {
+export function LibraryEmptyState({ kind, scope, scopeTitle, isReadLaterView = false, onAdd, onImport, onShowAll, onClear, onSearch }: LibraryEmptyStateProps) {
   let title: string;
   let description: string;
   let icon: ReactNode;
@@ -29,9 +30,9 @@ export function LibraryEmptyState({ kind, scope, scopeTitle, onAdd, onImport, on
     icon = <RiFolderOpenLine size={24} />;
     actions = <><Button variant="primary" onPress={onAdd}>{t("添加网站")}</Button><Button variant="secondary" onPress={onImport}>{t("导入收藏")}</Button></>;
   } else if (kind === "scope") {
-    title = scope === "favorites" ? t("还没有星标收藏项") : scope === "unprocessed" ? t("没有待整理的收藏项") : t("当前范围还没有收藏项");
-    description = scope === "favorites" ? t("为常用的收藏项添加星标，就能在这里快速找到。") : scope === "unprocessed" ? t("已有收藏项都补充了描述或标签，去看看其他内容吧。") : t("添加到这个范围的收藏项会显示在这里。");
-    icon = scope === "favorites" ? <RiBookmarkLine size={24} /> : scope === "unprocessed" ? <RiCheckboxCircleLine size={24} /> : <RiFolderOpenLine size={24} />;
+    title = isReadLaterView ? t("没有未读文章") : scope === "favorites" ? t("还没有星标收藏项") : scope === "unprocessed" ? t("没有待整理的收藏项") : t("当前范围还没有收藏项");
+    description = isReadLaterView ? t("新添加的文章和标为未读的文章会显示在这里。") : scope === "favorites" ? t("为常用的收藏项添加星标，就能在这里快速找到。") : scope === "unprocessed" ? t("已有收藏项都补充了描述或标签，去看看其他内容吧。") : t("添加到这个范围的收藏项会显示在这里。");
+    icon = isReadLaterView ? <RiBookLine size={24} /> : scope === "favorites" ? <RiBookmarkLine size={24} /> : scope === "unprocessed" ? <RiCheckboxCircleLine size={24} /> : <RiFolderOpenLine size={24} />;
     const isContentType = scope === "website" || scope === "article" || scope === "follow";
     actions = <>{isContentType ? <Button variant="primary" onPress={onAdd}>{t(scope === "article" ? "添加文章" : scope === "follow" ? "添加关注源" : "添加网站")}</Button> : null}<Button variant="secondary" onPress={onShowAll}>{t("查看全部收藏")}</Button></>;
   } else if (kind === "search-unavailable") {

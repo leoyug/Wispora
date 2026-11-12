@@ -142,8 +142,10 @@ async function captureRemotePage(
     const item = await inspirationRepository.getSavedItem(request.itemId);
     if (!item || normalizeUrl(request.url) !== item.canonicalUrl) throw new Error("收藏项与补全网址不一致。");
 
-    await inspirationRepository.markCaptureStarted(item.id, captureMethod);
-    started = true;
+    if (!request.refreshArticleCover) {
+      await inspirationRepository.markCaptureStarted(item.id, captureMethod);
+      started = true;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
     let capture: PageCapture;
@@ -155,6 +157,12 @@ async function captureRemotePage(
       capture = readRemoteMetadata(await readLimitedHtml(response), request.url, response.url || request.url);
     } finally {
       clearTimeout(timeout);
+    }
+    if (request.refreshArticleCover) {
+      const coverUpdated = capture.articleCover
+        ? await inspirationRepository.refreshArticleCover(item.id, item.canonicalUrl, capture.articleCover)
+        : false;
+      return { ok: true, created: false, itemId: item.id, title: item.title, completeness: item.snapshotStatus === "pending" ? "partial" : item.snapshotStatus, coverUpdated };
     }
     const completed = await completeCaptureWithIconAnalysis(item.id, capture, captureMethod);
     void processAiQueue();

@@ -1,3 +1,4 @@
+import { resolveXArticleMetadata } from "@/src/capture/xArticleMetadata";
 import Dexie, { type Transaction } from "dexie";
 import { createFallbackTitle, formatUrlIdentity, normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { PageCapture } from "@/src/capture/types";
@@ -13,11 +14,10 @@ import type {
   Tag,
   UpdateSavedItemInput,
 } from "@/src/domain/inspiration";
-import { resolveDescription } from "@/src/domain/inspiration";
+import { readLaterViewId, resolveDescription } from "@/src/domain/inspiration";
 import { db, type WisporaDatabase } from "./database";
 
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
-const systemViewId = "read-later";
 
 function createId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -69,11 +69,11 @@ export class InspirationRepository {
   constructor(private readonly database: WisporaDatabase = db) {}
 
   async initialize() {
-    const existing = await this.database.savedViews.get(systemViewId);
+    const existing = await this.database.savedViews.get(readLaterViewId);
     if (existing) return;
     const now = Date.now();
     await this.database.savedViews.put({
-      id: systemViewId,
+      id: readLaterViewId,
       name: "稍后阅读",
       isSystem: true,
       scope: "article",
@@ -144,6 +144,7 @@ export class InspirationRepository {
       const affectedIds = new Set([...item.tagIds, ...nextTagIds]);
       await this.database.savedItems.update(itemId, {
         kind: nextKind,
+        ...(kindChanged ? { isRead: undefined } : {}),
         title,
         description: input.description.trim(),
         descriptionSource: input.descriptionEdited === false ? item.descriptionSource : input.description.trim() ? "user" : undefined,
@@ -398,6 +399,16 @@ export class InspirationRepository {
     });
   }
 
+  async refreshArticleCover(id: string, canonicalUrl: string, image: string) {
+    const updated = await this.database.savedItems.where("id").equals(id).and((item) =>
+      item.kind === "article" && item.canonicalUrl === canonicalUrl && !item.cover.isUserSelected && item.cover.image !== image,
+    ).modify((item) => {
+      item.cover = { ...item.cover, image, blob: undefined };
+      item.updatedAt = Date.now();
+    });
+    return updated > 0;
+  }
+
   async completeCapture(itemId: string, capture: PageCapture, captureMethod: PersistentTask["captureMethod"] = "active-tab") {
     return this.database.transaction(
       "rw",
@@ -414,13 +425,16 @@ export class InspirationRepository {
           .and((candidate) => candidate.id !== itemId)
           .first();
         const targetItem = duplicate ?? sourceItem;
+        const { title, description } = targetItem.kind === "article"
+          ? resolveXArticleMetadata(new URL(capture.url), capture.title, capture.documentTitle, capture.description)
+          : capture;
         const now = Date.now();
         const snapshotId = targetItem.snapshotId ?? createId("snapshot");
         const snapshot: Snapshot = {
           id: snapshotId,
           itemId: targetItem.id,
           capturedAt: now,
-          title: capture.title,
+          title,
           byline: capture.byline,
           excerpt: capture.excerpt,
           cleanText: capture.cleanText,
@@ -429,24 +443,23 @@ export class InspirationRepository {
           completeness: capture.completeness,
           error: capture.completeness === "failed" ? "页面中没有可保存的正文内容" : undefined,
         };
-        const nextDescription = resolveDescription(targetItem, { description: capture.description, source: "page" });
-        // Only a page-authored social preview is suitable for a full-width cover.
-        // Site logos and favicons remain identity metadata; stretching either into
-        // the cover frame produces a misleading, low-quality result.
-        const automaticImage = capture.ogImage;
+        const nextDescription = resolveDescription(targetItem, { description, source: "page" });
+        const automaticImage = targetItem.kind === "article"
+          ? capture.articleCover ?? capture.ogImage
+          : capture.ogImage;
         const nextCover = targetItem.cover.isUserSelected
           ? targetItem.cover
           : {
               ...targetItem.cover,
               image: automaticImage,
               blob: undefined,
-              label: capture.title || targetItem.cover.label,
+              label: title || targetItem.cover.label,
             };
         await this.database.snapshots.put(snapshot);
         await this.database.savedItems.update(targetItem.id, {
           canonicalUrl: candidateCanonical,
           siteHost: new URL(candidateCanonical).hostname.replace(/^www\./, ""),
-          title: capture.title.trim() || targetItem.title,
+          title: title.trim() || targetItem.title,
           description: nextDescription.description,
           descriptionSource: nextDescription.descriptionSource,
           cover: nextCover,
@@ -688,6 +701,13 @@ export class InspirationRepository {
   async toggleFavorite(id: string) {
     await this.database.savedItems.where("id").equals(id).modify((item) => {
       item.isFavorite = !item.isFavorite;
+      item.updatedAt = Date.now();
+    });
+  }
+
+  async toggleArticleRead(id: string) {
+    await this.database.savedItems.where("id").equals(id).and((item) => item.kind === "article").modify((item) => {
+      item.isRead = item.isRead !== true;
       item.updatedAt = Date.now();
     });
   }
