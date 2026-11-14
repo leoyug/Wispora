@@ -16,6 +16,7 @@ import { SelectMenu } from "@/src/components/ui/SelectMenu";
 import { TagInput } from "@/src/components/ui/TagInput";
 import { inspirationRepository } from "@/src/db/repository";
 import type { ExtensionRequest } from "@/src/capture/types";
+import { normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { LibraryItem, SavedItemKind, UpdateSavedItemInput } from "@/src/domain/inspiration";
 import { cn } from "@/src/lib/cn";
 import { t, tf } from "@/src/i18n/ui";
@@ -176,7 +177,8 @@ export function DetailDialog({ item, onClose, onToggleFavorite, onToggleRead, on
           <div ref={scrollRef} className="detail-scroll">
             {mode === "snapshot" ? (
               <SnapshotReader
-                url={item.canonicalUrl}
+                url={snapshot?.sourceUrl ?? item.canonicalUrl}
+                baseUrl={snapshot?.baseUrl ?? snapshot?.sourceUrl ?? (normalizeUrl(item.originalUrl) === normalizeUrl(item.canonicalUrl) ? item.originalUrl : item.canonicalUrl)}
                 title={snapshot?.title || item.title}
                 source={snapshot?.byline || item.siteHost}
                 status={snapshotLabel}

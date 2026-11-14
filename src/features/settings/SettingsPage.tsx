@@ -204,10 +204,10 @@ function AiSettings() {
   };
   const setProvider = (provider: AiSettings["provider"]) => {
     setConnectionState("idle"); setConnectionMessage("");
-    if (provider !== settings.provider) { setApiKey(""); setKeyError(false); }
-    if (provider === "custom") { setSettings((current) => ({ ...current, provider })); return; }
-    const preset = aiProviderPresets[provider];
-    setSettings((current) => ({ ...current, provider, endpoint: preset.endpoint, model: preset.model }));
+    const preset = provider === "custom" ? undefined : aiProviderPresets[provider];
+    const next = { provider, endpoint: preset?.endpoint ?? settings.endpoint, model: preset?.model ?? settings.model };
+    if (!canReuseAiKey(settings, next)) { setApiKey(""); setKeyError(false); }
+    setSettings((current) => ({ ...current, ...next }));
   };
   const selectedStorageDescription = t(apiKeyStorageOptions.find((option) => option.value === settings.apiKeyStorage)?.description ?? "退出浏览器后需重新填写。");
 
@@ -221,7 +221,13 @@ function AiSettings() {
       <SettingsSectionHeading title={t("模型与连接")} description={t("选择服务并配置请求地址、模型和 API Key。")} />
       <SettingsCard>
         <SettingsRow title="Provider" description={t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
-        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => { setSettings((current) => ({ ...current, endpoint })); setKeyError(false); }} placeholder="https://api.openai.com/v1" />} />
+        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => {
+          if (!canReuseAiKey(settings, { ...settings, endpoint })) setApiKey("");
+          setSettings((current) => ({ ...current, endpoint }));
+          setKeyError(false);
+          setConnectionState("idle");
+          setConnectionMessage("");
+        }} placeholder="https://api.openai.com/v1" />} />
         <SettingsRow title="Model" control={<AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />} />
         <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={(key) => { setApiKey(key); setKeyError(false); }} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} isInvalid={keyError && settings.enabled} aria-describedby={keyError && settings.enabled ? "ai-key-save-error" : undefined} />}>
           {keyError && settings.enabled ? <p id="ai-key-save-error" className="form-error" role="alert">{t("请填写 API Key。")}</p> : null}

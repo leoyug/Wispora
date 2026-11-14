@@ -128,6 +128,7 @@ function CodeToolbar({ language, text }: { language: string; text: string }) {
 
 interface SnapshotReaderProps {
   url: string;
+  baseUrl?: string;
   title: string;
   source: string;
   status: string;
@@ -135,7 +136,7 @@ interface SnapshotReaderProps {
   isArticle: boolean;
 }
 
-export function SnapshotReader({ url, title, source, status, html, isArticle }: SnapshotReaderProps) {
+export function SnapshotReader({ url, baseUrl, title, source, status, html, isArticle }: SnapshotReaderProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [toolbarTargets, setToolbarTargets] = useState<HTMLElement[]>([]);
   const [footnoteTargets, setFootnoteTargets] = useState<HTMLElement[]>([]);
@@ -143,8 +144,8 @@ export function SnapshotReader({ url, title, source, status, html, isArticle }: 
     const sourceUrl = new URL(url);
     const isXArticle = isArticle && isXStatusUrl(sourceUrl);
     const displayTitle = (isXArticle && getXArticleTitle(sourceUrl, title)) || title;
-    return { displayTitle, body: prepareSnapshotHtml(html, sourceUrl, displayTitle, isXArticle) };
-  }, [url, title, html, isArticle]);
+    return { displayTitle, body: prepareSnapshotHtml(html, baseUrl ? new URL(baseUrl) : sourceUrl, displayTitle, isXArticle) };
+  }, [url, baseUrl, title, html, isArticle]);
 
   const markup = useMemo(() => ({ __html: body.markup }), [body.markup]);
 

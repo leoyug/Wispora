@@ -394,6 +394,25 @@ describe("InspirationRepository", () => {
     database.close();
   });
 
+  it("restores a deleted legacy duplicate with its snapshot and exact URL", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const current = await repository.createSavedItem({ kind: "article", url: "https://example.com/guide" });
+    const legacy = await repository.createSavedItem({ kind: "article", url: "https://example.com/legacy" });
+    await repository.completeCapture(legacy.item.id, createCapture({
+      url: "https://example.com/legacy/", baseUrl: "https://example.com/legacy/",
+    }));
+    await database.savedItems.update(legacy.item.id, { canonicalUrl: "https://example.com/guide/" });
+    const deleted = await repository.deleteSavedItem(legacy.item.id);
+    expect(await repository.restoreSavedItem(deleted!)).toBe(true);
+    expect(await repository.getSavedItem(current.item.id)).toBeDefined();
+    expect(await repository.getSavedItem(legacy.item.id)).toMatchObject({ canonicalUrl: "https://example.com/guide/" });
+    expect(await repository.getSnapshot(legacy.item.id)).toMatchObject({
+      sourceUrl: "https://example.com/legacy/", baseUrl: "https://example.com/legacy/",
+    });
+    database.close();
+  });
+
   it("keeps content parameters from the final page when the declared canonical omits them", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);

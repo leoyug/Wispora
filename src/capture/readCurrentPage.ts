@@ -82,6 +82,7 @@ export function readCurrentPage(): PageCapture {
     documentTitle,
     description,
     url: location.href,
+    baseUrl: /^https?:\/\//i.test(document.baseURI) ? document.baseURI : undefined,
     canonicalUrl,
     siteName: metaContent('meta[property="og:site_name"]') || undefined,
     byline: article?.byline || undefined,

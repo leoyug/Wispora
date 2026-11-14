@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchModelCatalog, loadConfiguredModels, modelCatalogUrl } from "./modelCatalog";
+import { saveAiSettingsWithPermission } from "./hostPermissions";
 import type { AiSettings } from "./types";
 
 const settings: AiSettings = { enabled: false, provider: "openai", endpoint: "https://api.openai.com/v1", model: "", apiKeyStorage: "session" };
@@ -7,7 +8,13 @@ function response(data: unknown) { return new Response(JSON.stringify(data), { s
 function browserMock(saved = settings) {
   const values: Record<string, unknown> = { "wanderland.ai.settings": saved };
   const session: Record<string, unknown> = { "wanderland.ai.sessionApiKey": "saved-secret" };
-  const area = (data: Record<string, unknown>) => ({ get: vi.fn(async () => data), set: vi.fn(), remove: vi.fn() });
+  const area = (data: Record<string, unknown>) => ({
+    get: vi.fn(async () => ({ ...data })),
+    set: vi.fn(async (next: Record<string, unknown>) => { Object.assign(data, next); }),
+    remove: vi.fn(async (keys: string | string[]) => {
+      for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key];
+    }),
+  });
   const browser = { storage: { local: area(values), session: area(session) }, permissions: { contains: vi.fn().mockResolvedValue(true), remove: vi.fn().mockResolvedValue(true) } };
   vi.stubGlobal("browser", browser);
   return browser;
@@ -71,6 +78,37 @@ describe("model catalog", () => {
     await loadConfiguredModels(settings);
     expect(fetchMock.mock.calls[0]![1].headers.Authorization).toBe("Bearer saved-secret");
     expect(browser.permissions.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps a model catalog grant when settings are saved for the same host before cleanup", async () => {
+    const browser = browserMock();
+    const fetching = Promise.withResolvers<void>();
+    const catalog = Promise.withResolvers<Response>();
+    const committing = Promise.withResolvers<void>();
+    const commit = Promise.withResolvers<void>();
+    vi.stubGlobal("fetch", vi.fn(() => { fetching.resolve(); return catalog.promise; }));
+    const set = browser.storage.local.set.getMockImplementation()!;
+    browser.storage.local.set.mockImplementationOnce(async (values) => {
+      committing.resolve();
+      await commit.promise;
+      await set(values);
+    });
+    const draft = { ...settings, endpoint: "https://other.example/v1", apiKey: "draft-key", model: "model" };
+    const listing = loadConfiguredModels(draft);
+    await fetching.promise;
+    const saving = saveAiSettingsWithPermission({ ...draft, enabled: true });
+    await committing.promise;
+    catalog.resolve(response({ data: [{ id: "model" }] }));
+    commit.resolve();
+    await Promise.all([listing, saving]);
+    expect(browser.permissions.remove).not.toHaveBeenCalledWith({ origins: ["https://other.example/*"] });
+  });
+
+  it("keeps the saved config unchanged if a temporary grant was already removed", async () => {
+    const browser = browserMock();
+    browser.permissions.contains.mockResolvedValue(false);
+    await expect(saveAiSettingsWithPermission({ ...settings, enabled: true, model: "model" })).rejects.toThrow("允许访问");
+    expect(browser.storage.local.set).not.toHaveBeenCalled();
   });
   it("revokes temporary permission on HTTP failure", async () => {
     const browser = browserMock();

@@ -34,7 +34,11 @@ const backupSchema = z.object({
     siteIconAutoBackground: z.literal("dark").optional(),
     siteIconBackgroundOverride: z.enum(["light", "dark"]).optional(),
   }).passthrough()),
-  snapshots: z.array(z.object({ id: z.string().min(1), itemId: z.string().min(1), cleanHtml: z.string(), cleanText: z.string() }).passthrough()),
+  snapshots: z.array(z.object({
+    id: z.string().min(1), itemId: z.string().min(1), cleanHtml: z.string(), cleanText: z.string(),
+    sourceUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value)).optional(),
+    baseUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value)).optional(),
+  }).passthrough()),
   tags: z.array(z.object({ id: z.string().min(1), name: z.string(), normalizedName: z.string().min(1), aliases: z.array(z.string()), usageCount: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),
   savedViews: z.array(z.object({ id: z.string().min(1), name: z.string(), scope: z.enum(["all", "unprocessed", "favorites", "website", "article", "follow"]), tagIds: z.array(z.string()), isSystem: z.boolean(), sortOrder: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),
   tasks: z.array(z.object({ id: z.string().min(1), itemId: z.string().min(1), type: z.enum(["capture", "ai"]), status: z.enum(["pending", "running", "failed", "complete"]), attempts: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),

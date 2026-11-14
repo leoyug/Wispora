@@ -1,5 +1,6 @@
 import { normalizeUrl } from "@/src/capture/normalizeUrl";
-import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage, saveAiSettings } from "@/src/ai/config";
+import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage } from "@/src/ai/config";
+import { saveAiSettingsWithPermission, withTemporaryAiPermission } from "@/src/ai/hostPermissions";
 import { isTrustedAiMessageSender } from "@/src/ai/messageSecurity";
 import { loadConfiguredModels } from "@/src/ai/modelCatalog";
 import { aiRequestOptions } from "@/src/ai/presets";
@@ -245,31 +246,26 @@ export default defineBackground(() => {
     if (request.type === "capture:remote-batch") return captureRemoteBatch(request);
     if (request.type === "ai:config:get") return getAiSettings();
     if (request.type === "ai:config:save") {
-      return (async () => {
-        const previous = await getAiSettings();
-        const settings = await saveAiSettings(request.settings);
-        try {
-          const previousPermission = endpointPermissionPattern(previous.endpoint);
-          const nextPermission = endpointPermissionPattern(settings.endpoint);
-          if (!settings.enabled || previousPermission !== nextPermission) {
-            await browser.permissions.remove({ origins: [previousPermission] });
-          }
-        } catch {
-          // Legacy insecure endpoints are intentionally not retained or requested.
-        }
+      return saveAiSettingsWithPermission(request.settings).then((settings) => {
         if (settings.enabled) void processAiQueue();
         return settings;
-      })();
+      });
     }
     if (request.type === "ai:models:list") return loadConfiguredModels(request.settings);
     if (request.type === "ai:config:test") {
-      return getAiTestCredentials(request.settings).then(({ settings, apiKey }) => new OpenAiCompatibleProvider({
-        endpoint: settings.endpoint,
-        model: settings.model,
-        apiKey,
-        timeoutMs: 15_000,
-        ...aiRequestOptions(settings),
-      }).testConnection()).then(() => ({ ok: true as const }));
+      const origin = endpointPermissionPattern(request.settings.endpoint);
+      return withTemporaryAiPermission(origin, async () => {
+        if (!(await browser.permissions.contains({ origins: [origin] }))) throw new Error("需要允许访问当前 Provider 域名，才能测试连接。");
+        const { settings, apiKey } = await getAiTestCredentials(request.settings);
+        await new OpenAiCompatibleProvider({
+          endpoint: settings.endpoint,
+          model: settings.model,
+          apiKey,
+          timeoutMs: 15_000,
+          ...aiRequestOptions(settings),
+        }).testConnection();
+        return { ok: true as const };
+      });
     }
     if (request.type === "ai:process") return processAiQueue().then(() => inspirationRepository.getAiTaskSummary());
     if (request.type === "ai:retry") {

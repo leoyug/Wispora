@@ -3,6 +3,7 @@ import type { AiSettings } from "@/src/ai/types";
 
 export interface PageCapture {
   url: string;
+  baseUrl?: string;
   canonicalUrl?: string;
   title: string;
   documentTitle?: string;

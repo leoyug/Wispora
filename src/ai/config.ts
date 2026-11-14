@@ -6,8 +6,12 @@ const LOCAL_KEY = "wanderland.ai.apiKey";
 const SESSION_KEY = "wanderland.ai.sessionApiKey";
 
 type ScopedKey = Pick<AiSettings, "provider" | "endpoint"> & { apiKey: string };
-type StoredSettings = Partial<AiSettings> & { scopedKey?: true };
+type StoredSettings = Partial<AiSettings> & { scopedKey?: true; sessionKeyId?: string };
 let pendingSave: Promise<unknown> = Promise.resolve();
+
+function sessionKeyName(id?: string) {
+  return id ? `${SESSION_KEY}.${id}` : SESSION_KEY;
+}
 
 export const defaultAiSettings: AiSettings = {
   enabled: false,
@@ -45,9 +49,10 @@ async function getStoredCredential() {
   const stored = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
   const saved = stored[SETTINGS_KEY] as StoredSettings | undefined;
   const settings = cleanSettings(saved);
+  const sessionKey = sessionKeyName(saved?.sessionKeyId);
   const value = settings.apiKeyStorage === "local"
     ? stored[LOCAL_KEY]
-    : (await browser.storage.session.get(SESSION_KEY))[SESSION_KEY];
+    : (await browser.storage.session.get(sessionKey))[sessionKey];
   // Legacy keys are only valid alongside legacy settings. All new writes bind the key to its endpoint.
   if (typeof value === "string" && saved && !saved.scopedKey && canReuseAiKey(settings, settings)) {
     return { settings, apiKey: value };
@@ -89,15 +94,20 @@ async function writeAiSettings(input: AiSettings & { apiKey?: string }): Promise
   const settings = cleanSettings(input);
   const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous.settings, settings) ? previous.apiKey : "");
   if (settings.enabled && !apiKey) throw new Error("请填写 API Key。");
-  const saved = { ...settings, scopedKey: true } satisfies StoredSettings;
+  const sessionKeyId = settings.apiKeyStorage === "session" && apiKey ? crypto.randomUUID() : undefined;
+  const saved: StoredSettings = { ...settings, scopedKey: true, ...(sessionKeyId ? { sessionKeyId } : {}) };
   const credential: ScopedKey | null = apiKey ? { provider: settings.provider, endpoint: settings.endpoint, apiKey } : null;
-  if (settings.apiKeyStorage === "local") {
-    await browser.storage.local.set({ [SETTINGS_KEY]: saved, [LOCAL_KEY]: credential });
-    await browser.storage.session.remove(SESSION_KEY);
-  } else {
-    await browser.storage.session.set({ [SESSION_KEY]: credential });
-    await browser.storage.local.set({ [SETTINGS_KEY]: saved, [LOCAL_KEY]: null });
+  const stagedKey = sessionKeyId ? sessionKeyName(sessionKeyId) : undefined;
+  const oldSessionKeys = Object.keys(await browser.storage.session.get(null))
+    .filter((key) => key === SESSION_KEY || key.startsWith(`${SESSION_KEY}.`));
+  if (stagedKey) await browser.storage.session.set({ [stagedKey]: credential });
+  try {
+    await browser.storage.local.set({ [SETTINGS_KEY]: saved, [LOCAL_KEY]: settings.apiKeyStorage === "local" ? credential : null });
+  } catch (error) {
+    if (stagedKey) await browser.storage.session.remove(stagedKey).catch(() => undefined);
+    throw error;
   }
+  await browser.storage.session.remove(oldSessionKeys).catch(() => undefined);
   return { ...settings, hasApiKey: Boolean(apiKey) };
 }
 

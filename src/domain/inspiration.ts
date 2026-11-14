@@ -77,6 +77,8 @@ export interface Snapshot {
   id: string;
   itemId: string;
   capturedAt: number;
+  sourceUrl?: string;
+  baseUrl?: string;
   title: string;
   byline?: string;
   excerpt?: string;

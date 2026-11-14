@@ -232,7 +232,7 @@ export class InspirationRepository {
     return this.database.transaction("rw", this.database.savedItems, this.database.snapshots, this.database.tasks, this.database.tags, async () => {
       const existing = await this.database.savedItems.get(deleted.item.id);
       if (existing) return true;
-      const collision = await this.findSavedItem(deleted.item.kind, normalizeUrl(deleted.item.canonicalUrl));
+      const collision = await this.database.savedItems.where("[kind+canonicalUrl]").equals([deleted.item.kind, deleted.item.canonicalUrl]).first();
       if (collision) return false;
       await this.database.savedItems.add(deleted.item);
       if (deleted.snapshots.length) await this.database.snapshots.bulkAdd(deleted.snapshots);
@@ -452,6 +452,8 @@ export class InspirationRepository {
           id: snapshotId,
           itemId: targetItem.id,
           capturedAt: now,
+          sourceUrl: capture.url,
+          baseUrl: capture.baseUrl,
           title,
           byline: capture.byline,
           excerpt: capture.excerpt,
