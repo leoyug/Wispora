@@ -21,7 +21,6 @@ interface InspirationListItemProps {
 
 export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite, onToggleRead, onContextMenu, variant = "detail" }: InspirationListItemProps) {
   const isCompact = variant === "compact";
-  const displayUrl = item.url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
   const hasCoverImage = Boolean(item.cover.image || item.cover.blob);
   const presentation = getInspirationPresentation(item);
 
@@ -41,7 +40,7 @@ export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite
           <h2 className="compact-list-title" title={item.title}>{item.title}</h2>
         </div>
         <a className="card-url-link compact-list-url" href={item.url} target="_blank" rel="noreferrer" title={item.url} onClick={(event) => event.stopPropagation()}>
-          <span className="card-url-text">{displayUrl}</span><RiArrowRightUpLine size={14} aria-hidden="true" />
+          <span className="card-url-text">{item.sourceLabel}</span><RiArrowRightUpLine size={14} aria-hidden="true" />
         </a>
       </> : <>
         <div className="list-item-copy">

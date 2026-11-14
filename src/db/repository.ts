@@ -95,12 +95,12 @@ export class InspirationRepository {
     const snapshotsByItem = new Map(snapshots.map((snapshot) => [snapshot.itemId, snapshot]));
     const aiTasksByItem = new Map(tasks.map((task) => [task.itemId, task]));
     return items.map((item) => {
-      const url = normalizeUrl(item.canonicalUrl);
+      const displayUrl = normalizeUrl(item.canonicalUrl);
       return {
         ...item,
-        title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(url) : item.title,
-        url,
-        sourceLabel: formatUrlIdentity(url),
+        title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(displayUrl) : item.title,
+        url: item.originalUrl,
+        sourceLabel: formatUrlIdentity(displayUrl),
         tags: item.tagIds.flatMap((id) => tagsById.get(id) ?? []),
         savedAt: formatSavedAt(item.createdAt),
         snapshotText: snapshotsByItem.get(item.id)?.cleanText ?? "",
@@ -119,9 +119,10 @@ export class InspirationRepository {
   }
 
   async updateSavedItem(itemId: string, input: UpdateSavedItemInput) {
-    const title = input.title.trim();
-    if (!title) throw new Error("标题不能为空");
-    const normalizedNames = [...new Set(input.tags.map(normalizeTagName).filter(Boolean))];
+    const title = input.title?.trim();
+    if (title === "") throw new Error("标题不能为空");
+    const description = input.description?.trim();
+    const normalizedNames = [...new Set(input.tags?.map(normalizeTagName).filter(Boolean))];
     const now = Date.now();
     return this.database.transaction("rw", this.database.savedItems, this.database.tags, this.database.tasks, async () => {
       const item = await this.database.savedItems.get(itemId);
@@ -129,8 +130,8 @@ export class InspirationRepository {
       const nextKind = input.kind ?? item.kind;
       const kindChanged = nextKind !== item.kind;
       if (kindChanged) {
-        const collision = await this.database.savedItems.where("[kind+canonicalUrl]").equals([nextKind, item.canonicalUrl]).first();
-        if (collision && collision.id !== itemId) throw new Error(`该链接已经有“${kindLabels[nextKind]}”类型的收藏项，无法再次改成此类型。`);
+        const collision = await this.findSavedItem(nextKind, item.canonicalUrl);
+        if (collision) throw new Error("该链接已收藏为所选类型，请选择其他类型。");
       }
       const existingTags = normalizedNames.length
         ? await this.database.tags.where("normalizedName").anyOf(normalizedNames).toArray()
@@ -141,16 +142,18 @@ export class InspirationRepository {
       }));
       if (createdTags.length) await this.database.tags.bulkAdd(createdTags);
       createdTags.forEach((tag) => existingByName.set(tag.normalizedName, tag));
-      const requestedTagIds = normalizedNames.flatMap((name) => existingByName.get(name)?.id ?? []);
+      const requestedTagIds = input.tags === undefined
+        ? item.tagIds
+        : normalizedNames.flatMap((name) => existingByName.get(name)?.id ?? []);
       const tagsChanged = item.tagIds.length !== requestedTagIds.length || item.tagIds.some((tagId) => !requestedTagIds.includes(tagId));
       const nextTagIds = kindChanged && !item.tagsEditedAt && !tagsChanged ? [] : requestedTagIds;
       const affectedIds = new Set([...item.tagIds, ...nextTagIds]);
       await this.database.savedItems.update(itemId, {
         kind: nextKind,
         ...(kindChanged ? { isRead: undefined } : {}),
-        title,
-        description: input.description.trim(),
-        descriptionSource: input.descriptionEdited === false ? item.descriptionSource : input.description.trim() ? "user" : undefined,
+        title: title ?? item.title,
+        description: description ?? item.description,
+        descriptionSource: description === undefined || input.descriptionEdited === false ? item.descriptionSource : description ? "user" : undefined,
         tagIds: nextTagIds,
         tagsEditedAt: tagsChanged ? now : item.tagsEditedAt,
         cover: input.coverBlob

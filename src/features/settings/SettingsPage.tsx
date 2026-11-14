@@ -2,7 +2,7 @@ import { RiArrowRightUpLine, RiRefreshLine, RiSearchLine, RiShieldCheckLine } fr
 import { rise } from "cube-motion";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
+import { assertSecureAiEndpoint, canReuseAiKey, endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
 import { BookmarkImportFields } from "@/src/components/import/BookmarkImportFields";
 import { useBookmarkImport } from "@/src/features/import/useBookmarkImport";
@@ -150,36 +150,42 @@ function TagsSettings() {
 function AiSettings() {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AiSettings>(defaultAiSettings);
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [savedSettings, setSavedSettings] = useState<AiSettingsView>();
   const [apiKey, setApiKey] = useState("");
   const [summary, setSummary] = useState(emptySummary);
   const [state, setState] = useState<"ready" | "saving" | "saved">("ready");
   const [connectionState, setConnectionState] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [connectionMessage, setConnectionMessage] = useState("");
   const [error, setError] = useState("");
+  const [keyError, setKeyError] = useState(false);
+  const hasApiKey = savedSettings?.hasApiKey && canReuseAiKey(savedSettings, settings);
 
   useEffect(() => {
     void Promise.all([
       sendExtensionMessage<AiSettingsView>({ type: "ai:config:get" } satisfies ExtensionRequest),
       sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest),
-    ]).then(([view, taskSummary]) => { setSettings(view); setHasApiKey(view.hasApiKey); setSummary(taskSummary); }).catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
+    ]).then(([view, taskSummary]) => { setSettings(view); setSavedSettings(view); setSummary(taskSummary); }).catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
   }, []);
 
   const save = async () => {
     setState("saving");
     setError("");
+    setKeyError(false);
     try {
+      assertSecureAiEndpoint(settings.endpoint);
+      if (!settings.model.trim()) throw new Error("请填写模型 ID。");
       if (settings.enabled) {
+        if (!apiKey.trim() && !hasApiKey) throw new Error("请填写 API Key。");
         const granted = await browser.permissions.request({ origins: [endpointPermissionPattern(settings.endpoint)] });
         if (!granted) throw new Error(t("需要允许访问当前 Provider 域名，才能发送 AI 请求。"));
-        if (!apiKey.trim() && !hasApiKey) throw new Error(t("请填写 API Key。"));
       }
       const view = await sendExtensionMessage<AiSettingsView>({ type: "ai:config:save", settings: { ...settings, apiKey: apiKey.trim() || undefined } } satisfies ExtensionRequest);
-      setSettings(view); setHasApiKey(view.hasApiKey); setApiKey(""); setState("saved");
+      setSettings(view); setSavedSettings(view); setApiKey(""); setState("saved");
       showToast(t("AI 设置已保存"), { tone: "success" });
       setSummary(await sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest));
     } catch (reason) {
-      setError(reason instanceof Error ? t(reason.message) : t("保存 AI 设置失败"));
+      if (reason instanceof Error && reason.message === "请填写 API Key。") setKeyError(true);
+      else setError(reason instanceof Error ? t(reason.message) : t("保存 AI 设置失败"));
       setState("ready");
     }
   };
@@ -198,7 +204,7 @@ function AiSettings() {
   };
   const setProvider = (provider: AiSettings["provider"]) => {
     setConnectionState("idle"); setConnectionMessage("");
-    if (provider !== settings.provider) { setHasApiKey(false); setApiKey(""); }
+    if (provider !== settings.provider) { setApiKey(""); setKeyError(false); }
     if (provider === "custom") { setSettings((current) => ({ ...current, provider })); return; }
     const preset = aiProviderPresets[provider];
     setSettings((current) => ({ ...current, provider, endpoint: preset.endpoint, model: preset.model }));
@@ -215,9 +221,11 @@ function AiSettings() {
       <SettingsSectionHeading title={t("模型与连接")} description={t("选择服务并配置请求地址、模型和 API Key。")} />
       <SettingsCard>
         <SettingsRow title="Provider" description={t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
-        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => setSettings((current) => ({ ...current, endpoint }))} placeholder="https://api.openai.com/v1" />} />
+        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => { setSettings((current) => ({ ...current, endpoint })); setKeyError(false); }} placeholder="https://api.openai.com/v1" />} />
         <SettingsRow title="Model" control={<AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />} />
-        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={setApiKey} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} />} />
+        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={(key) => { setApiKey(key); setKeyError(false); }} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} isInvalid={keyError && settings.enabled} aria-describedby={keyError && settings.enabled ? "ai-key-save-error" : undefined} />}>
+          {keyError && settings.enabled ? <p id="ai-key-save-error" className="form-error" role="alert">{t("请填写 API Key。")}</p> : null}
+        </SettingsRow>
         <SettingsRow title={t("测试连接")} description={t("发送最小请求，不保存当前表单或 API Key。")} control={<Button variant="secondary" size="sm" isDisabled={connectionState === "testing"} onPress={() => void testConnection()}><RiRefreshLine size={15} />{connectionState === "testing" ? t("正在测试…") : t("测试连接")}</Button>} >{connectionMessage ? <span className={connectionState === "success" ? "is-success" : "is-error"} role="status">{connectionMessage}</span> : null}</SettingsRow>
       </SettingsCard>
     </section>

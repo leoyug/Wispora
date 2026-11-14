@@ -134,9 +134,9 @@ export interface LibraryItem extends SavedItem {
 
 export interface UpdateSavedItemInput {
   kind?: SavedItemKind;
-  title: string;
-  description: string;
-  tags: string[];
+  title?: string;
+  description?: string;
+  tags?: string[];
   coverBlob?: Blob;
   descriptionEdited?: boolean;
   siteIconBackground?: "auto" | "light" | "dark";

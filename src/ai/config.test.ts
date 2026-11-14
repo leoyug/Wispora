@@ -43,7 +43,7 @@ describe("AI settings storage", () => {
     const preset = aiProviderPresets[provider];
     await saveAiSettings({ enabled: true, provider, endpoint: preset.endpoint, model: "my-custom-model", apiKeyStorage: "session", apiKey: "test-secret" });
     expect(await getAiSettings()).toMatchObject({ provider, endpoint: preset.endpoint, model: "my-custom-model", hasApiKey: true });
-    await saveAiSettings({ enabled: true, provider: "custom", endpoint: "https://example.com/v1", model: "other", apiKeyStorage: "session" });
+    await saveAiSettings({ enabled: false, provider: "custom", endpoint: "https://example.com/v1", model: "other", apiKeyStorage: "session" });
     expect((await getAiSettings()).hasApiKey).toBe(false);
   });
 
@@ -62,10 +62,23 @@ describe("AI settings storage", () => {
     vi.stubGlobal("browser", { storage: { local, session } });
     await saveAiSettings({ enabled: true, provider: "openai", endpoint: "https://api.openai.com/v1", model: "gpt-4.1-mini", apiKeyStorage: "session", apiKey: "openai-secret" });
 
-    const view = await saveAiSettings({ enabled: true, provider: "deepseek", endpoint: "https://api.deepseek.com", model: "deepseek-v4-flash", apiKeyStorage: "session" });
+    const view = await saveAiSettings({ enabled: false, provider: "deepseek", endpoint: "https://api.deepseek.com", model: "deepseek-v4-flash", apiKeyStorage: "session" });
 
     expect(view.hasApiKey).toBe(false);
     expect(Object.values(session.values)).not.toContain("openai-secret");
+  });
+
+  it("preserves the saved settings and key when an enabled endpoint changes origin without a new key", async () => {
+    const local = storageArea();
+    const session = storageArea();
+    vi.stubGlobal("browser", { storage: { local, session } });
+    const settings = { enabled: true, provider: "custom" as const, endpoint: "https://api.example.com/v1", model: "model", apiKeyStorage: "session" as const };
+    await saveAiSettings({ ...settings, apiKey: "test-secret" });
+    await expect(saveAiSettings({ ...settings, endpoint: "https://api.example.net/v1" })).rejects.toThrow("请填写 API Key。");
+    expect(await getAiSettings()).toEqual({ ...settings, hasApiKey: true });
+    expect(Object.values(session.values)).toContain("test-secret");
+
+    await expect(saveAiSettings({ ...settings, endpoint: "https://api.example.com/v2" })).resolves.toMatchObject({ hasApiKey: true });
   });
 
   it("resolves test credentials without persisting an unsaved key", async () => {

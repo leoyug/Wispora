@@ -516,6 +516,7 @@ export const enUS: Record<string, string> = {
   "清除搜索": "Clear search",
   "请输入完整的 http:// 或 https:// 链接": "Enter a complete http:// or https:// link",
   "请填写 API Key。": "Enter an API key.",
+  "该链接已收藏为所选类型，请选择其他类型。": "This link is already saved as the selected type. Choose another type.",
   "请至少粘贴一个链接": "Paste at least one link",
   "取消": "Cancel",
   "取消归档": "Restore from archive",

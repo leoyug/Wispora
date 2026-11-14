@@ -13,6 +13,15 @@ export const defaultAiSettings: AiSettings = {
   apiKeyStorage: "session",
 };
 
+export function canReuseAiKey(saved: Pick<AiSettings, "provider" | "endpoint">, draft: Pick<AiSettings, "provider" | "endpoint">) {
+  if (saved.provider !== draft.provider) return false;
+  try {
+    return assertSecureAiEndpoint(saved.endpoint).origin === assertSecureAiEndpoint(draft.endpoint).origin;
+  } catch {
+    return false;
+  }
+}
+
 function cleanSettings(value: Partial<AiSettings> | undefined): AiSettings {
   const endpoint = value?.endpoint?.trim().replace(/\/$/, "") || defaultAiSettings.endpoint;
   const model = value?.model?.trim() || defaultAiSettings.model;
@@ -54,7 +63,7 @@ export async function getAiConnectionCredentials(input: AiSettings & { apiKey?: 
   assertSecureAiEndpoint(input.endpoint);
   const settings = cleanSettings(input);
   const previous = await getStoredCredential();
-  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider && new URL(previous.endpoint).origin === new URL(settings.endpoint).origin ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous, settings) ? previous.apiKey : "");
   if (!apiKey) throw new Error("请先填写 API Key。");
   return { settings, apiKey };
 }
@@ -69,7 +78,8 @@ export async function saveAiSettings(input: AiSettings & { apiKey?: string }): P
   if (!input.model.trim()) throw new Error("请填写模型 ID。");
   const previous = await getStoredCredential();
   const settings = cleanSettings(input);
-  const apiKey = input.apiKey?.trim() || (previous.provider === settings.provider && new URL(previous.endpoint).origin === new URL(settings.endpoint).origin ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous, settings) ? previous.apiKey : "");
+  if (settings.enabled && !apiKey) throw new Error("请填写 API Key。");
   await browser.storage.local.set({ [SETTINGS_KEY]: settings });
   if (settings.apiKeyStorage === "local") {
     if (apiKey) await browser.storage.local.set({ [LOCAL_KEY]: apiKey });
