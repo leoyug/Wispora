@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchModelCatalog, loadConfiguredModels, modelCatalogUrl } from "./modelCatalog";
-import { releaseUnusedHostPermissions, saveAiSettingsWithPermission, withRequestedHostPermissions, withHostPermissionUse } from "./hostPermissions";
+import { drainUnusedHostPermissions, releaseUnusedHostPermissions, saveAiSettingsWithPermission, withRequestedHostPermissions, withHostPermissionUse } from "./hostPermissions";
 import type { AiSettings } from "./types";
 
 const settings: AiSettings = { enabled: false, provider: "openai", endpoint: "https://api.openai.com/v1", model: "", apiKeyStorage: "session" };
@@ -169,6 +169,28 @@ describe("model catalog", () => {
     browser.permissions.contains.mockResolvedValue(false);
     await expect(saveAiSettingsWithPermission({ ...settings, enabled: true, model: "model" })).rejects.toThrow("允许访问");
     expect(browser.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it("continues cleanup if the dashboard disconnects before its permission lock is released", async () => {
+    const browser = browserMock();
+    const origin = "https://example.net/*";
+    const entered = Promise.withResolvers<void>();
+    const closeTab = Promise.withResolvers<void>();
+    const dashboard = withHostPermissionUse(async () => {
+      await browser.permissions.request({ origins: [origin] });
+      entered.resolve();
+      await closeTab.promise;
+    });
+    await entered.promise;
+    const cleanup = drainUnusedHostPermissions();
+    try {
+      await vi.waitFor(() => expect(browser.permissions.getAll).toHaveBeenCalled(), { timeout: 2000 });
+      expect(browser.permissions.remove).not.toHaveBeenCalled();
+    } finally {
+      closeTab.resolve();
+      await Promise.all([dashboard, cleanup]);
+    }
+    expect(browser.permissions.remove).toHaveBeenCalledExactlyOnceWith({ origins: [origin] });
   });
   it("revokes temporary permission on HTTP failure", async () => {
     const browser = browserMock();

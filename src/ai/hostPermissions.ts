@@ -3,6 +3,7 @@ import type { AiSettings } from "./types";
 
 const lockName = "wispora.host-permissions";
 export const hostPermissionPort = "host-permission-operation";
+let pendingCleanup: Promise<void> | undefined;
 
 export async function withHostPermissionUse<T>(operation: () => Promise<T>): Promise<T> {
   return await navigator.locks.request(lockName, { mode: "shared" }, operation);
@@ -10,8 +11,7 @@ export async function withHostPermissionUse<T>(operation: () => Promise<T>): Pro
 
 export function releaseUnusedHostPermissions() {
   return navigator.locks.request(lockName, { ifAvailable: true }, async (lock) => {
-    // The last active operation will retry cleanup after releasing its shared lock.
-    if (!lock) return;
+    if (!lock) return false;
     const settings = await getAiSettings();
     const retained = settings.enabled
       ? (() => {
@@ -25,7 +25,20 @@ export function releaseUnusedHostPermissions() {
     const unused = origins.filter((origin) => /^https?:\/\/[^/*]+\/\*$/.test(origin)
       && origin !== retained && !required.has(origin));
     if (unused.length) await browser.permissions.remove({ origins: unused });
+    return true;
   });
+}
+
+export function drainUnusedHostPermissions() {
+  pendingCleanup ??= (async () => {
+    while (!(await releaseUnusedHostPermissions())) {
+      // Queuing an exclusive lock would block a dashboard's nested background operation.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      // Use an extension API while we wait so MV3 does not suspend the worker mid-cleanup.
+      await browser.permissions.getAll();
+    }
+  })().finally(() => { pendingCleanup = undefined; });
+  return pendingCleanup;
 }
 
 /** Hold the permission from before the browser prompt until the operation completes. */

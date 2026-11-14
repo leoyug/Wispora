@@ -46,18 +46,19 @@ export async function getAiSettings(): Promise<AiSettingsView> {
 }
 
 async function getStoredCredential() {
-  const stored = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
-  const credential = await readCredential(stored);
-  if (credential.apiKey || credential.settings.apiKeyStorage === "local") return credential;
+  let stored = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
+  while (true) {
+    const credential = await readCredential(stored);
+    if (credential.apiKey || credential.settings.apiKeyStorage === "local") return credential;
 
-  // A reader can hold the previous pointer while a successful save removes that key.
-  const current = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
-  const previousSettings = stored[SETTINGS_KEY] as StoredSettings | undefined;
-  const currentSettings = current[SETTINGS_KEY] as StoredSettings | undefined;
-  return previousSettings?.sessionKeyId !== currentSettings?.sessionKeyId
-    || previousSettings?.apiKeyStorage !== currentSettings?.apiKeyStorage
-    ? readCredential(current)
-    : credential;
+    // Each save can remove the session key referenced by the previous settings.
+    const current = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
+    const previousSettings = stored[SETTINGS_KEY] as StoredSettings | undefined;
+    const currentSettings = current[SETTINGS_KEY] as StoredSettings | undefined;
+    if (previousSettings?.sessionKeyId === currentSettings?.sessionKeyId
+      && previousSettings?.apiKeyStorage === currentSettings?.apiKeyStorage) return credential;
+    stored = current;
+  }
 }
 
 async function readCredential(stored: Record<string, unknown>) {

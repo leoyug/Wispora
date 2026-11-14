@@ -108,6 +108,37 @@ describe("AI settings storage", () => {
     }
   });
 
+  it("retries until the session key matches after two consecutive saves", async () => {
+    const local = storageArea();
+    const session = storageArea();
+    vi.stubGlobal("browser", { storage: { local, session } });
+    const settings = { enabled: true, provider: "custom" as const, endpoint: "https://api.example.com/v1", model: "first", apiKeyStorage: "session" as const };
+    await saveAiSettings({ ...settings, apiKey: "first-key" });
+    const get = session.get;
+    const delayedReads = vi.spyOn(session, "get");
+    const delayNextRead = () => {
+      const entered = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      delayedReads.mockImplementationOnce(async (keys) => {
+        entered.resolve();
+        await resume.promise;
+        return get(keys);
+      });
+      return { entered: entered.promise, resume: resume.resolve };
+    };
+    const first = delayNextRead();
+    const reading = getAiCredentials();
+    await first.entered;
+    await saveAiSettings({ ...settings, model: "second", apiKey: "second-key" });
+    const second = delayNextRead();
+    first.resume();
+    await second.entered;
+    const latest = { ...settings, model: "third" };
+    await saveAiSettings({ ...latest, apiKey: "third-key" });
+    second.resume();
+    await expect(reading).resolves.toEqual({ settings: latest, apiKey: "third-key" });
+  });
+
   it.each(["local", "session"] as const)("retains and scopes a legacy %s key on the next save", async (apiKeyStorage) => {
     const local = storageArea();
     const session = storageArea();

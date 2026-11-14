@@ -1,6 +1,6 @@
 import { normalizeUrl } from "@/src/capture/normalizeUrl";
 import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage } from "@/src/ai/config";
-import { hostPermissionPort, releaseUnusedHostPermissions, saveAiSettingsWithPermission, withHostPermissionUse } from "@/src/ai/hostPermissions";
+import { drainUnusedHostPermissions, hostPermissionPort, saveAiSettingsWithPermission, withHostPermissionUse } from "@/src/ai/hostPermissions";
 import { isTrustedAiMessageSender } from "@/src/ai/messageSecurity";
 import { loadConfiguredModels } from "@/src/ai/modelCatalog";
 import { aiRequestOptions } from "@/src/ai/presets";
@@ -189,7 +189,7 @@ export default defineBackground(() => {
     inspirationRepository.recoverInterruptedAiTasks(),
   ]).then(() => processAiQueue()).catch((error) => console.error("Wispora 初始化失败", error));
 
-  const cleanHostPermissions = () => { void releaseUnusedHostPermissions().catch(() => undefined); };
+  const cleanHostPermissions = () => { void drainUnusedHostPermissions().catch(() => undefined); };
   const runHostOperation = <T>(operation: () => Promise<T>) => withHostPermissionUse(operation).finally(cleanHostPermissions);
   browser.runtime.onStartup.addListener(cleanHostPermissions);
   browser.runtime.onInstalled.addListener(cleanHostPermissions);
