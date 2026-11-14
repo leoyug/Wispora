@@ -1,6 +1,6 @@
 import { resolveXArticleMetadata } from "@/src/capture/xArticleMetadata";
 import Dexie, { type Transaction } from "dexie";
-import { createFallbackTitle, formatUrlIdentity, normalizeUrl } from "@/src/capture/normalizeUrl";
+import { createFallbackTitle, formatUrlIdentity, isSprrrintHomepage, normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { PageCapture } from "@/src/capture/types";
 import type { AiAnalysisInput, AiTaskSummary, PageAnalysis } from "@/src/ai/types";
 import type {
@@ -94,17 +94,20 @@ export class InspirationRepository {
     const tagsById = new Map(tags.map((tag) => [tag.id, tag.name]));
     const snapshotsByItem = new Map(snapshots.map((snapshot) => [snapshot.itemId, snapshot]));
     const aiTasksByItem = new Map(tasks.map((task) => [task.itemId, task]));
-    return items.map((item) => ({
-      ...item,
-      title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(item.canonicalUrl) : item.title,
-      url: item.originalUrl,
-      sourceLabel: formatUrlIdentity(item.canonicalUrl),
-      tags: item.tagIds.flatMap((id) => tagsById.get(id) ?? []),
-      savedAt: formatSavedAt(item.createdAt),
-      snapshotText: snapshotsByItem.get(item.id)?.cleanText ?? "",
-      aiError: aiTasksByItem.get(item.id)?.lastError,
-      aiAttempts: aiTasksByItem.get(item.id)?.attempts,
-    }));
+    return items.map((item) => {
+      const url = normalizeUrl(item.canonicalUrl);
+      return {
+        ...item,
+        title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(url) : item.title,
+        url,
+        sourceLabel: formatUrlIdentity(url),
+        tags: item.tagIds.flatMap((id) => tagsById.get(id) ?? []),
+        savedAt: formatSavedAt(item.createdAt),
+        snapshotText: snapshotsByItem.get(item.id)?.cleanText ?? "",
+        aiError: aiTasksByItem.get(item.id)?.lastError,
+        aiAttempts: aiTasksByItem.get(item.id)?.attempts,
+      };
+    });
   }
 
   async getSnapshot(itemId: string) {
@@ -299,7 +302,7 @@ export class InspirationRepository {
     const canonicalUrl = normalizeUrl(input.url);
     try {
       const result = await this.database.transaction("rw", this.database.savedItems, this.database.tasks, async () => {
-        const existing = await this.database.savedItems.where("[kind+canonicalUrl]").equals([input.kind, canonicalUrl]).first();
+        const existing = await this.findSavedItem(input.kind, canonicalUrl);
         if (existing) return { created: false, item: existing };
 
         const parsed = new URL(canonicalUrl);
@@ -361,7 +364,7 @@ export class InspirationRepository {
       return { ...result, item: (await this.database.savedItems.get(result.item.id)) ?? result.item };
     } catch (error) {
       if (!(error instanceof Dexie.ConstraintError)) throw error;
-      const existing = await this.database.savedItems.where("[kind+canonicalUrl]").equals([input.kind, canonicalUrl]).first();
+      const existing = await this.findSavedItem(input.kind, canonicalUrl);
       if (!existing) throw error;
       return { created: false, item: existing };
     }
@@ -372,7 +375,15 @@ export class InspirationRepository {
   }
 
   async findSavedItem(kind: SavedItem["kind"], url: string) {
-    return this.database.savedItems.where("[kind+canonicalUrl]").equals([kind, normalizeUrl(url)]).first();
+    const canonicalUrl = normalizeUrl(url);
+    const exact = await this.database.savedItems.where("[kind+canonicalUrl]").equals([kind, canonicalUrl]).first();
+    if (exact || !isSprrrintHomepage(new URL(canonicalUrl))) return exact;
+
+    // Older records may still have the homepage's limit parameter in their indexed URL.
+    const homepage = new URL(canonicalUrl);
+    return this.database.savedItems.where("canonicalUrl").startsWith(`${homepage.origin}/?`)
+      .and((item) => item.kind === kind && normalizeUrl(item.canonicalUrl) === canonicalUrl)
+      .first();
   }
 
   async markCaptureStarted(itemId: string, captureMethod: PersistentTask["captureMethod"] = "active-tab") {
@@ -418,12 +429,14 @@ export class InspirationRepository {
       async () => {
         const sourceItem = await this.database.savedItems.get(itemId);
         if (!sourceItem) throw new Error("收藏项不存在");
-        const candidateCanonical = normalizeUrl(capture.canonicalUrl || capture.url);
-        const duplicate = await this.database.savedItems
-          .where("[kind+canonicalUrl]")
-          .equals([sourceItem.kind, candidateCanonical])
-          .and((candidate) => candidate.id !== itemId)
-          .first();
+        const candidateCanonical = normalizeUrl(capture.url);
+        const existing = await this.findSavedItem(sourceItem.kind, candidateCanonical);
+        const duplicate = existing?.id !== itemId && normalizeUrl(sourceItem.canonicalUrl) !== candidateCanonical
+          ? existing
+          : undefined;
+        const canonicalUrl = existing && existing.id !== itemId && !duplicate
+          ? sourceItem.canonicalUrl
+          : candidateCanonical;
         const targetItem = duplicate ?? sourceItem;
         const { title, description } = targetItem.kind === "article"
           ? resolveXArticleMetadata(new URL(capture.url), capture.title, capture.documentTitle, capture.description)
@@ -457,7 +470,7 @@ export class InspirationRepository {
             };
         await this.database.snapshots.put(snapshot);
         await this.database.savedItems.update(targetItem.id, {
-          canonicalUrl: candidateCanonical,
+          canonicalUrl,
           siteHost: new URL(candidateCanonical).hostname.replace(/^www\./, ""),
           title: title.trim() || targetItem.title,
           description: nextDescription.description,

@@ -314,18 +314,47 @@ describe("InspirationRepository", () => {
     database.close();
   });
 
-  it("merges a captured canonical duplicate instead of creating two items", async () => {
+  it("merges a redirect duplicate instead of creating two items", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);
     const canonical = await repository.createSavedItem({ kind: "article", url: "https://example.com/article" });
     const alias = await repository.createSavedItem({ kind: "article", url: "https://example.com/article?edition=feed" });
 
-    const result = await repository.completeCapture(alias.item.id, createCapture());
+    const result = await repository.completeCapture(alias.item.id, createCapture({ canonicalUrl: "https://example.com/" }));
 
     expect(result).toEqual({ itemId: canonical.item.id, mergedDuplicate: true });
     expect(await database.savedItems.count()).toBe(1);
     expect(await database.snapshots.where("itemId").equals(canonical.item.id).count()).toBe(1);
     expect(await database.tasks.where("itemId").equals(alias.item.id).count()).toBe(0);
+    database.close();
+  });
+
+  it("opens the cleaned homepage and detects duplicates against a legacy saved URL", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const legacy = await repository.createSavedItem({ kind: "website", url: "https://sprrrint.com/?limit=48" });
+    await database.savedItems.update(legacy.item.id, { canonicalUrl: legacy.item.originalUrl });
+
+    const result = await repository.createSavedItem({ kind: "website", url: "https://sprrrint.com/" });
+    expect(result).toMatchObject({ created: false, item: { id: legacy.item.id } });
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { id: legacy.item.id, url: "https://sprrrint.com/", sourceLabel: "sprrrint.com" },
+    ]);
+    database.close();
+  });
+
+  it("keeps content parameters from the final page when the declared canonical omits them", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const { item } = await repository.createSavedItem({ kind: "article", url: "https://example.com/out" });
+    await repository.completeCapture(item.id, createCapture({
+      url: "https://example.com/read?id=42&ref=feed",
+      canonicalUrl: "https://example.com/read",
+    }));
+
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { id: item.id, url: "https://example.com/read?id=42", sourceLabel: "example.com/read?id=42" },
+    ]);
     database.close();
   });
 

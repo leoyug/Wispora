@@ -1,3 +1,7 @@
+export function isSprrrintHomepage(url: URL): boolean {
+  return (url.hostname === "sprrrint.com" || url.hostname === "www.sprrrint.com") && url.pathname === "/";
+}
+
 export function normalizeUrl(input: string): string {
   const url = new URL(input);
   url.hash = "";
@@ -5,6 +9,7 @@ export function normalizeUrl(input: string): string {
   for (const key of [...url.searchParams.keys()]) {
     if (key.startsWith("utm_") || key === "ref") url.searchParams.delete(key);
   }
+  if (isSprrrintHomepage(url)) url.searchParams.delete("limit");
   if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/$/, "");
   return url.toString();
 }

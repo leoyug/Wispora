@@ -116,7 +116,7 @@ async function retryCurrentPage(request: Extract<ExtensionRequest, { type: "capt
     if (!item) throw new Error("收藏项不存在。");
     const capture = await readTab(tab.id!);
     const currentCandidates = [tab.url!, capture.url, capture.canonicalUrl].filter(Boolean).map((url) => normalizeUrl(url!));
-    if (!currentCandidates.includes(item.canonicalUrl)) {
+    if (!currentCandidates.includes(normalizeUrl(item.canonicalUrl))) {
       throw new Error("请先打开该收藏项的来源页面，再重试采集。");
     }
     await inspirationRepository.markCaptureStarted(item.id);
@@ -140,7 +140,7 @@ async function captureRemotePage(
     if (request.permissionPattern !== expectedPermission) throw new Error("补全权限范围与目标网站不一致。");
     if (!await browser.permissions.contains({ origins: [expectedPermission] })) throw new Error("未获得该网站的临时访问权限。");
     const item = await inspirationRepository.getSavedItem(request.itemId);
-    if (!item || normalizeUrl(request.url) !== item.canonicalUrl) throw new Error("收藏项与补全网址不一致。");
+    if (!item || normalizeUrl(request.url) !== normalizeUrl(item.canonicalUrl)) throw new Error("收藏项与补全网址不一致。");
 
     if (!request.refreshArticleCover) {
       await inspirationRepository.markCaptureStarted(item.id, captureMethod);
