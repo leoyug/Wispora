@@ -448,7 +448,7 @@ export class InspirationRepository {
           : capture;
         const now = Date.now();
         const snapshotId = targetItem.snapshotId ?? createId("snapshot");
-        const snapshot: Snapshot = {
+        const incomingSnapshot: Snapshot = {
           id: snapshotId,
           itemId: targetItem.id,
           capturedAt: now,
@@ -463,6 +463,15 @@ export class InspirationRepository {
           completeness: capture.completeness,
           error: capture.completeness === "failed" ? "页面中没有可保存的正文内容" : undefined,
         };
+        const previousSnapshot = targetItem.snapshotId
+          ? await this.database.snapshots.get(targetItem.snapshotId)
+          : undefined;
+        const snapshot = previousSnapshot
+          && ((previousSnapshot.cleanHtml.trim() && !incomingSnapshot.cleanHtml.trim())
+            || (previousSnapshot.cleanText.trim() && !incomingSnapshot.cleanText.trim())
+            || (previousSnapshot.completeness === "complete" && incomingSnapshot.completeness !== "complete"))
+          ? previousSnapshot
+          : incomingSnapshot;
         const nextDescription = resolveDescription(targetItem, { description, source: "page" });
         const automaticImage = targetItem.kind === "article"
           ? capture.articleCover ?? capture.ogImage
@@ -471,7 +480,7 @@ export class InspirationRepository {
           ? targetItem.cover
           : {
               ...targetItem.cover,
-              image: automaticImage,
+              image: automaticImage ?? targetItem.cover.image,
               blob: undefined,
               label: title || targetItem.cover.label,
             };
@@ -488,7 +497,7 @@ export class InspirationRepository {
             ? undefined
             : targetItem.siteIconAutoBackground,
           snapshotId,
-          snapshotStatus: capture.completeness,
+          snapshotStatus: snapshot.completeness,
           updatedAt: now,
         });
         if (duplicate) {
@@ -499,16 +508,16 @@ export class InspirationRepository {
         const targetTask = await this.database.tasks.where("itemId").equals(targetItem.id).and((task) => task.type === "capture").first();
         if (targetTask) {
           await this.database.tasks.update(targetTask.id, {
-            status: capture.completeness === "failed" ? "failed" : "complete",
-            lastError: capture.completeness === "failed" ? snapshot.error : undefined,
+            status: snapshot.completeness === "failed" ? "failed" : "complete",
+            lastError: snapshot.error,
             updatedAt: now,
           });
         } else {
           await this.database.tasks.add({
             id: createId("task"), itemId: targetItem.id, type: "capture",
-            status: capture.completeness === "failed" ? "failed" : "complete",
+            status: snapshot.completeness === "failed" ? "failed" : "complete",
             attempts: 1, captureMethod: "active-tab", createdAt: now, updatedAt: now,
-            lastError: capture.completeness === "failed" ? snapshot.error : undefined,
+            lastError: snapshot.error,
           });
         }
         return { itemId: targetItem.id, mergedDuplicate: Boolean(duplicate) };

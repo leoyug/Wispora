@@ -3,6 +3,7 @@ import Dexie from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SavedItem } from "@/src/domain/inspiration";
 import type { PageCapture } from "@/src/capture/types";
+import { readRemoteMetadata } from "@/src/capture/readRemoteMetadata";
 import { getInspirationPresentation } from "@/src/components/inspiration/getInspirationPresentation";
 import { WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
@@ -327,6 +328,29 @@ describe("InspirationRepository", () => {
     expect(await database.savedItems.count()).toBe(1);
     expect(await database.snapshots.where("itemId").equals(canonical.item.id).count()).toBe(1);
     expect(await database.tasks.where("itemId").equals(alias.item.id).count()).toBe(0);
+    database.close();
+  });
+
+  it("preserves a complete snapshot when remote metadata merges a redirected alias", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/article/";
+    const { item } = await repository.createSavedItem({ kind: "article", url, description: "My notes" });
+    await repository.completeCapture(item.id, createCapture({ url, baseUrl: url, ogImage: "https://example.com/cover.jpg" }));
+    const previous = await repository.getSnapshot(item.id);
+    expect(previous?.completeness).toBe("complete");
+    const aliasUrl = "https://short.example/redirect";
+    const { item: alias } = await repository.createSavedItem({ kind: "article", url: aliasUrl });
+    const metadata = readRemoteMetadata('<title>New page title</title><link rel="canonical" href="/elsewhere">', aliasUrl, url);
+
+    expect(await repository.completeCapture(alias.id, metadata, "manual-url")).toEqual({ itemId: item.id, mergedDuplicate: true });
+    expect(await database.savedItems.count()).toBe(1);
+    expect(await repository.getSnapshot(item.id)).toEqual(previous);
+    expect(await repository.getSavedItem(item.id)).toMatchObject({
+      originalUrl: url, title: "New page title", description: "My notes", snapshotStatus: "complete",
+      cover: { image: "https://example.com/cover.jpg" },
+    });
+    expect(await database.tasks.where("itemId").equals(item.id).and((task) => task.type === "capture").first()).toMatchObject({ status: "complete" });
     database.close();
   });
 

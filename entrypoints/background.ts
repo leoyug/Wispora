@@ -1,6 +1,6 @@
 import { normalizeUrl } from "@/src/capture/normalizeUrl";
 import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage } from "@/src/ai/config";
-import { saveAiSettingsWithPermission, withTemporaryAiPermission } from "@/src/ai/hostPermissions";
+import { hostPermissionPort, releaseUnusedHostPermissions, saveAiSettingsWithPermission, withHostPermissionUse } from "@/src/ai/hostPermissions";
 import { isTrustedAiMessageSender } from "@/src/ai/messageSecurity";
 import { loadConfiguredModels } from "@/src/ai/modelCatalog";
 import { aiRequestOptions } from "@/src/ai/presets";
@@ -132,7 +132,6 @@ async function retryCurrentPage(request: Extract<ExtensionRequest, { type: "capt
 
 async function captureRemotePage(
   request: Extract<ExtensionRequest, { type: "capture:remote" }>,
-  revokePermission = true,
   captureMethod: "manual-url" | "import" = "manual-url",
 ): Promise<CaptureResponse> {
   let started = false;
@@ -171,22 +170,15 @@ async function captureRemotePage(
   } catch (error) {
     if (started) await inspirationRepository.failCapture(request.itemId, readableError(error));
     return { ok: false, itemId: request.itemId, error: readableError(error) };
-  } finally {
-    if (revokePermission) await browser.permissions.remove({ origins: [expectedPermission] }).catch(() => false);
   }
 }
 
 async function captureRemoteBatch(request: Extract<ExtensionRequest, { type: "capture:remote-batch" }>) {
-  const permissions = [...new Set(request.items.map((item) => item.permissionPattern))];
-  try {
-    const results: CaptureResponse[] = [];
-    for (const item of request.items) {
-      results.push(await captureRemotePage({ type: "capture:remote", ...item }, false, "import"));
-    }
-    return results;
-  } finally {
-    if (permissions.length) await browser.permissions.remove({ origins: permissions }).catch(() => false);
+  const results: CaptureResponse[] = [];
+  for (const item of request.items) {
+    results.push(await captureRemotePage({ type: "capture:remote", ...item }, "import"));
   }
+  return results;
 }
 
 export default defineBackground(() => {
@@ -197,9 +189,19 @@ export default defineBackground(() => {
     inspirationRepository.recoverInterruptedAiTasks(),
   ]).then(() => processAiQueue()).catch((error) => console.error("Wispora 初始化失败", error));
 
+  const cleanHostPermissions = () => { void releaseUnusedHostPermissions().catch(() => undefined); };
+  const runHostOperation = <T>(operation: () => Promise<T>) => withHostPermissionUse(operation).finally(cleanHostPermissions);
+  browser.runtime.onStartup.addListener(cleanHostPermissions);
+  browser.runtime.onInstalled.addListener(cleanHostPermissions);
+  browser.permissions.onAdded.addListener(cleanHostPermissions);
+
   const captureLanguagePorts = new Set<Browser.runtime.Port>();
   let languageRevision = 0;
   browser.runtime.onConnect.addListener((port) => {
+    if (port.name === hostPermissionPort && port.sender && isTrustedAiMessageSender(port.sender, browser.runtime.id, browser.runtime.getURL("/dashboard.html"))) {
+      port.onDisconnect.addListener(cleanHostPermissions);
+      return;
+    }
     if (port.name !== "capture-language" || port.sender?.id !== browser.runtime.id || !port.sender.tab?.id) return;
     captureLanguagePorts.add(port);
     port.onDisconnect.addListener(() => captureLanguagePorts.delete(port));
@@ -242,19 +244,19 @@ export default defineBackground(() => {
     if (request.type === "tags:list") return inspirationRepository.listTags();
     if (request.type === "capture:current") return addCurrentPage(request, sender.tab);
     if (request.type === "capture:retry") return retryCurrentPage(request, sender.tab);
-    if (request.type === "capture:remote") return captureRemotePage(request);
-    if (request.type === "capture:remote-batch") return captureRemoteBatch(request);
+    if (request.type === "capture:remote") return runHostOperation(() => captureRemotePage(request));
+    if (request.type === "capture:remote-batch") return runHostOperation(() => captureRemoteBatch(request));
     if (request.type === "ai:config:get") return getAiSettings();
     if (request.type === "ai:config:save") {
-      return saveAiSettingsWithPermission(request.settings).then((settings) => {
+      return runHostOperation(() => saveAiSettingsWithPermission(request.settings)).then((settings) => {
         if (settings.enabled) void processAiQueue();
         return settings;
       });
     }
-    if (request.type === "ai:models:list") return loadConfiguredModels(request.settings);
+    if (request.type === "ai:models:list") return runHostOperation(() => loadConfiguredModels(request.settings));
     if (request.type === "ai:config:test") {
       const origin = endpointPermissionPattern(request.settings.endpoint);
-      return withTemporaryAiPermission(origin, async () => {
+      return runHostOperation(async () => {
         if (!(await browser.permissions.contains({ origins: [origin] }))) throw new Error("需要允许访问当前 Provider 域名，才能测试连接。");
         const { settings, apiKey } = await getAiTestCredentials(request.settings);
         await new OpenAiCompatibleProvider({

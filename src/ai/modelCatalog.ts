@@ -1,5 +1,4 @@
 import { assertSecureAiEndpoint, endpointPermissionPattern, getAiConnectionCredentials } from "./config";
-import { withTemporaryAiPermission } from "./hostPermissions";
 import type { AiModelOption, AiSettings } from "./types";
 
 export function modelCatalogUrl(endpoint: string) {
@@ -52,9 +51,7 @@ export async function fetchModelCatalog(endpoint: string, apiKey: string, timeou
 /** This entry point runs only in the background, behind trusted sender validation. */
 export async function loadConfiguredModels(input: AiSettings & { apiKey?: string }): Promise<AiModelOption[]> {
   const origin = endpointPermissionPattern(input.endpoint);
-  return withTemporaryAiPermission(origin, async () => {
-    if (!(await browser.permissions.contains({ origins: [origin] }))) throw new Error("需要允许访问当前 Provider 域名，才能获取模型。");
-    const { settings, apiKey } = await getAiConnectionCredentials(input);
-    return await fetchModelCatalog(settings.endpoint, apiKey);
-  });
+  if (!(await browser.permissions.contains({ origins: [origin] }))) throw new Error("需要允许访问当前 Provider 域名，才能获取模型。");
+  const { settings, apiKey } = await getAiConnectionCredentials(input);
+  return fetchModelCatalog(settings.endpoint, apiKey);
 }

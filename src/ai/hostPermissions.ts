@@ -1,59 +1,52 @@
 import { endpointPermissionPattern, getAiSettings, saveAiSettings } from "./config";
 import type { AiSettings } from "./types";
 
-let pendingChange: Promise<unknown> = Promise.resolve();
-const activeRequests = new Map<string, number>();
+const lockName = "wispora.host-permissions";
+export const hostPermissionPort = "host-permission-operation";
 
-function changePermissions<T>(operation: () => Promise<T>) {
-  const result = pendingChange.then(operation);
-  pendingChange = result.catch(() => undefined);
-  return result;
+export async function withHostPermissionUse<T>(operation: () => Promise<T>): Promise<T> {
+  return await navigator.locks.request(lockName, { mode: "shared" }, operation);
 }
 
-function savedOrigin(settings: AiSettings) {
-  if (!settings.enabled) return undefined;
-  try { return endpointPermissionPattern(settings.endpoint); }
-  catch { return undefined; }
-}
-
-async function releaseUnusedOrigin(origin: string, retainedOrigin?: string) {
-  if (origin !== retainedOrigin && !activeRequests.has(origin)) {
-    await browser.permissions.remove({ origins: [origin] }).catch(() => false);
-  }
-}
-
-export function saveAiSettingsWithPermission(input: AiSettings & { apiKey?: string }) {
-  return changePermissions(async () => {
-    const origin = endpointPermissionPattern(input.endpoint);
-    const previousOrigin = savedOrigin(await getAiSettings());
-    try {
-      if (input.enabled && !(await browser.permissions.contains({ origins: [origin] }))) {
-        throw new Error("需要允许访问当前 Provider 域名，才能发送 AI 请求。");
-      }
-      const settings = await saveAiSettings(input);
-      if (previousOrigin) await releaseUnusedOrigin(previousOrigin, savedOrigin(settings));
-      if (!settings.enabled) await releaseUnusedOrigin(origin);
-      return settings;
-    } catch (error) {
-      await releaseUnusedOrigin(origin, previousOrigin);
-      throw error;
-    }
+export function releaseUnusedHostPermissions() {
+  return navigator.locks.request(lockName, { ifAvailable: true }, async (lock) => {
+    // The last active operation will retry cleanup after releasing its shared lock.
+    if (!lock) return;
+    const settings = await getAiSettings();
+    const retained = settings.enabled
+      ? (() => {
+          try { return endpointPermissionPattern(settings.endpoint); }
+          catch { return undefined; }
+        })()
+      : undefined;
+    const manifest = browser.runtime.getManifest();
+    const required = new Set([...(manifest.host_permissions ?? []), ...(manifest.permissions ?? [])]);
+    const { origins = [] } = await browser.permissions.getAll();
+    const unused = origins.filter((origin) => /^https?:\/\/[^/*]+\/\*$/.test(origin)
+      && origin !== retained && !required.has(origin));
+    if (unused.length) await browser.permissions.remove({ origins: unused });
   });
 }
 
-export async function withTemporaryAiPermission<T>(origin: string, request: () => Promise<T>): Promise<T> {
-  activeRequests.set(origin, (activeRequests.get(origin) ?? 0) + 1);
+/** Hold the permission from before the browser prompt until the operation completes. */
+export async function withRequestedHostPermissions<T>(origins: string[], operation: (granted: boolean) => Promise<T>) {
+  if (!origins.length) return operation(false);
+  const port = browser.runtime.connect({ name: hostPermissionPort });
   try {
-    return await request();
-  } finally {
-    await changePermissions(async () => {
-      const remaining = (activeRequests.get(origin) ?? 1) - 1;
-      if (remaining) {
-        activeRequests.set(origin, remaining);
-        return;
-      }
-      activeRequests.delete(origin);
-      await releaseUnusedOrigin(origin, savedOrigin(await getAiSettings()));
+    return await withHostPermissionUse(async () => {
+      const granted = await browser.permissions.request({ origins }).catch(() => false);
+      return operation(granted);
     });
+  } finally {
+    port.disconnect();
+    await releaseUnusedHostPermissions().catch(() => undefined);
   }
+}
+
+export async function saveAiSettingsWithPermission(input: AiSettings & { apiKey?: string }) {
+  const origin = endpointPermissionPattern(input.endpoint);
+  if (input.enabled && !(await browser.permissions.contains({ origins: [origin] }))) {
+    throw new Error("需要允许访问当前 Provider 域名，才能发送 AI 请求。");
+  }
+  return saveAiSettings(input);
 }

@@ -102,8 +102,9 @@ describe("AI settings storage", () => {
       await entered.promise;
       await saveAiSettings({ ...next, apiKey: "new-key" });
       resume.resolve();
-      expect([null, "请先填写 API Key。"]).toContain(await pending);
-      expect(await getAiCredentials()).toEqual({ settings: next, apiKey: "new-key" });
+      const expected = { settings: next, apiKey: "new-key" };
+      expect(await pending).toEqual(read === getAiCredentials ? expected : "请先填写 API Key。");
+      expect(await getAiCredentials()).toEqual(expected);
     }
   });
 

@@ -3,6 +3,8 @@ import { rise } from "cube-motion";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { assertSecureAiEndpoint, canReuseAiKey, endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
+import { withRequestedHostPermissions } from "@/src/ai/hostPermissions";
+import { importSavedUrls } from "@/src/features/import/importSavedUrls";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
 import { BookmarkImportFields } from "@/src/components/import/BookmarkImportFields";
 import { useBookmarkImport } from "@/src/features/import/useBookmarkImport";
@@ -49,28 +51,7 @@ function sendExtensionMessage<T>(request: ExtensionRequest) {
 }
 
 async function importBookmarkUrls(urls: string[], enrichMetadata: boolean) {
-  const origins = [...new Set(urls.map((url) => {
-    const target = new URL(url);
-    return `${target.protocol}//${target.hostname}/*`;
-  }))];
-  const permissionRequest = enrichMetadata ? browser.permissions.request({ origins }).catch(() => false) : Promise.resolve(false);
-  const [permissionGranted, result] = await Promise.all([
-    permissionRequest,
-    inspirationRepository.importUrls("website", urls),
-  ]);
-  if (permissionGranted && result.addedItems.length > 0) {
-    const items = result.addedItems.map(({ id, url }) => {
-      const target = new URL(url);
-      return { itemId: id, url, permissionPattern: `${target.protocol}//${target.hostname}/*` };
-    });
-    try {
-      await sendExtensionMessage({ type: "capture:remote-batch", items } satisfies ExtensionRequest);
-    } finally {
-      await browser.permissions.remove({ origins }).catch(() => false);
-    }
-  } else if (permissionGranted) {
-    await browser.permissions.remove({ origins }).catch(() => false);
-  }
+  const result = await importSavedUrls("website", urls, enrichMetadata);
   void sendExtensionMessage({ type: "ai:process" } satisfies ExtensionRequest).catch(() => undefined);
   return result;
 }
@@ -151,7 +132,8 @@ function AiSettings() {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AiSettings>(defaultAiSettings);
   const [savedSettings, setSavedSettings] = useState<AiSettingsView>();
-  const [apiKey, setApiKey] = useState("");
+  const [draftKey, setDraftKey] = useState<(Pick<AiSettings, "provider" | "endpoint"> & { value: string })>();
+  const apiKey = draftKey && canReuseAiKey(draftKey, settings) ? draftKey.value : "";
   const [summary, setSummary] = useState(emptySummary);
   const [state, setState] = useState<"ready" | "saving" | "saved">("ready");
   const [connectionState, setConnectionState] = useState<"idle" | "testing" | "success" | "error">("idle");
@@ -161,10 +143,11 @@ function AiSettings() {
   const hasApiKey = savedSettings?.hasApiKey && canReuseAiKey(savedSettings, settings);
 
   useEffect(() => {
-    void Promise.all([
-      sendExtensionMessage<AiSettingsView>({ type: "ai:config:get" } satisfies ExtensionRequest),
-      sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest),
-    ]).then(([view, taskSummary]) => { setSettings(view); setSavedSettings(view); setSummary(taskSummary); }).catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
+    void sendExtensionMessage<AiSettingsView>({ type: "ai:config:get" })
+      .then((view) => { setSettings(view); setSavedSettings(view); })
+      .catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
+    void sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" })
+      .then(setSummary).catch(() => undefined);
   }, []);
 
   const save = async () => {
@@ -176,11 +159,12 @@ function AiSettings() {
       if (!settings.model.trim()) throw new Error("请填写模型 ID。");
       if (settings.enabled) {
         if (!apiKey.trim() && !hasApiKey) throw new Error("请填写 API Key。");
-        const granted = await browser.permissions.request({ origins: [endpointPermissionPattern(settings.endpoint)] });
-        if (!granted) throw new Error(t("需要允许访问当前 Provider 域名，才能发送 AI 请求。"));
       }
-      const view = await sendExtensionMessage<AiSettingsView>({ type: "ai:config:save", settings: { ...settings, apiKey: apiKey.trim() || undefined } } satisfies ExtensionRequest);
-      setSettings(view); setSavedSettings(view); setApiKey(""); setState("saved");
+      const view = await withRequestedHostPermissions(settings.enabled ? [endpointPermissionPattern(settings.endpoint)] : [], (granted) => {
+        if (settings.enabled && !granted) throw new Error("需要允许访问当前 Provider 域名，才能发送 AI 请求。");
+        return sendExtensionMessage<AiSettingsView>({ type: "ai:config:save", settings: { ...settings, apiKey: apiKey.trim() || undefined } });
+      });
+      setSettings(view); setSavedSettings(view); setDraftKey(undefined); setState("saved");
       showToast(t("AI 设置已保存"), { tone: "success" });
       setSummary(await sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest));
     } catch (reason) {
@@ -196,9 +180,10 @@ function AiSettings() {
   const testConnection = async () => {
     setConnectionState("testing"); setConnectionMessage("");
     try {
-      const granted = await browser.permissions.request({ origins: [endpointPermissionPattern(settings.endpoint)] });
-      if (!granted) throw new Error(t("需要允许访问当前 Provider 域名，才能测试连接。"));
-      await sendExtensionMessage({ type: "ai:config:test", settings: { ...settings, apiKey: apiKey.trim() || undefined } } satisfies ExtensionRequest);
+      await withRequestedHostPermissions([endpointPermissionPattern(settings.endpoint)], (granted) => {
+        if (!granted) throw new Error("需要允许访问当前 Provider 域名，才能测试连接。");
+        return sendExtensionMessage({ type: "ai:config:test", settings: { ...settings, apiKey: apiKey.trim() || undefined } });
+      });
       setConnectionState("success"); setConnectionMessage(t("连接成功，API Key、Endpoint 和 Model 可用。"));
     } catch (reason) { setConnectionState("error"); setConnectionMessage(reason instanceof Error ? t(reason.message) : t("连接测试失败")); }
   };
@@ -206,10 +191,15 @@ function AiSettings() {
     setConnectionState("idle"); setConnectionMessage("");
     const preset = provider === "custom" ? undefined : aiProviderPresets[provider];
     const next = { provider, endpoint: preset?.endpoint ?? settings.endpoint, model: preset?.model ?? settings.model };
-    if (!canReuseAiKey(settings, next)) { setApiKey(""); setKeyError(false); }
+    if (!canReuseAiKey(settings, next)) { setDraftKey(undefined); setKeyError(false); }
     setSettings((current) => ({ ...current, ...next }));
   };
   const selectedStorageDescription = t(apiKeyStorageOptions.find((option) => option.value === settings.apiKeyStorage)?.description ?? "退出浏览器后需重新填写。");
+
+  if (!savedSettings) return <div className="settings-form">
+    <SettingsHeader title={t("AI 助手")} />
+    {error ? <p className="form-error" role="alert">{error}</p> : <p role="status">{t("正在读取…")}</p>}
+  </div>;
 
   return <div className="settings-form">
     <SettingsHeader title={t("AI 助手")} description={t("可选的 OpenAI-compatible Provider，不会影响本地添加、编辑与搜索。")} action={<Button variant="primary" size="sm" isDisabled={state === "saving"} onPress={() => void save()}>{state === "saving" ? t("保存中…") : t("保存设置")}</Button>} />
@@ -222,14 +212,14 @@ function AiSettings() {
       <SettingsCard>
         <SettingsRow title="Provider" description={t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
         <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => {
-          if (!canReuseAiKey(settings, { ...settings, endpoint })) setApiKey("");
+          if (!canReuseAiKey(settings, { ...settings, endpoint })) setDraftKey(undefined);
           setSettings((current) => ({ ...current, endpoint }));
           setKeyError(false);
           setConnectionState("idle");
           setConnectionMessage("");
         }} placeholder="https://api.openai.com/v1" />} />
         <SettingsRow title="Model" control={<AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />} />
-        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={(key) => { setApiKey(key); setKeyError(false); }} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} isInvalid={keyError && settings.enabled} aria-describedby={keyError && settings.enabled ? "ai-key-save-error" : undefined} />}>
+        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={(key) => { setDraftKey({ provider: settings.provider, endpoint: settings.endpoint, value: key }); setKeyError(false); }} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} isInvalid={keyError && settings.enabled} aria-describedby={keyError && settings.enabled ? "ai-key-save-error" : undefined} />}>
           {keyError && settings.enabled ? <p id="ai-key-save-error" className="form-error" role="alert">{t("请填写 API Key。")}</p> : null}
         </SettingsRow>
         <SettingsRow title={t("测试连接")} description={t("发送最小请求，不保存当前表单或 API Key。")} control={<Button variant="secondary" size="sm" isDisabled={connectionState === "testing"} onPress={() => void testConnection()}><RiRefreshLine size={15} />{connectionState === "testing" ? t("正在测试…") : t("测试连接")}</Button>} >{connectionMessage ? <span className={connectionState === "success" ? "is-success" : "is-error"} role="status">{connectionMessage}</span> : null}</SettingsRow>

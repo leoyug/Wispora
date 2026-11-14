@@ -2,6 +2,8 @@ import { RiArchiveLine, RiArrowUpDownLine, RiBookmarkFill, RiBookmarkLine, RiDel
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FloatingAddMenu } from "@/src/components/inspiration/FloatingAddMenu";
+import { withRequestedHostPermissions } from "@/src/ai/hostPermissions";
+import { capturePermissionPattern, importSavedUrls } from "@/src/features/import/importSavedUrls";
 import type { CaptureResponse, ExtensionRequest } from "@/src/capture/types";
 import { InspirationCard } from "@/src/components/inspiration/InspirationCard";
 import { InspirationListItem } from "@/src/components/inspiration/InspirationListItem";
@@ -350,64 +352,34 @@ export function LibraryPage() {
   }
 
   async function addItem({ kind, url, description, enrichMetadata }: { kind: SavedItemKind; url: string; description: string; enrichMetadata: boolean }) {
-    const target = new URL(url);
-    const permissionPattern = `${target.protocol}//${target.hostname}/*`;
-    const permissionRequest = enrichMetadata
-      ? browser.permissions.request({ origins: [permissionPattern] }).catch(() => false)
-      : Promise.resolve(false);
-    const [permissionGranted, result] = await Promise.all([
-      permissionRequest,
-      inspirationRepository.createSavedItem({ kind, url, description, captureMethod: "manual-url" }),
-    ]);
-    const refreshArticleCover = !result.created && kind === "article" && !result.item.cover.isUserSelected;
-    if (permissionGranted) {
-      try {
-        if (result.created || refreshArticleCover) {
-          const response = await browser.runtime.sendMessage({
-            type: "capture:remote", itemId: result.item.id, url, permissionPattern, refreshArticleCover,
-          } satisfies ExtensionRequest) as CaptureResponse;
-          if (refreshArticleCover && response.ok && response.coverUpdated) {
-            showToast(t("文章封面已更新"), { tone: "success" });
-            return true;
-          }
-        }
-      } finally {
-        await browser.permissions.remove({ origins: [permissionPattern] }).catch(() => false);
+    const permissionPattern = capturePermissionPattern(url);
+    const outcome = await withRequestedHostPermissions(enrichMetadata ? [permissionPattern] : [], async (granted) => {
+      const result = await inspirationRepository.createSavedItem({ kind, url, description, captureMethod: "manual-url" });
+      const refreshArticleCover = !result.created && kind === "article" && !result.item.cover.isUserSelected;
+      if (granted && (result.created || refreshArticleCover)) {
+        const response: CaptureResponse = await browser.runtime.sendMessage({
+          type: "capture:remote", itemId: result.item.id, url, permissionPattern, refreshArticleCover,
+        } satisfies ExtensionRequest);
+        if (response.ok && response.coverUpdated) return { coverUpdated: true } as const;
+        if (response.ok && response.itemId !== result.item.id) return null;
       }
+      return result.created ? { item: result.item } : null;
+    });
+    if (!outcome) return false;
+    if ("coverUpdated" in outcome) {
+      showToast(t("文章封面已更新"), { tone: "success" });
+      return true;
     }
-    if (!result.created) return false;
+    const { item } = outcome;
     void browser.runtime.sendMessage({ type: "ai:process" } satisfies ExtensionRequest);
     changeScope(kind);
-    const addedItem = await inspirationRepository.getSavedItem(result.item.id);
-    showUndoToast(t("已添加收藏项"), { subject: addedItem?.title ?? result.item.title, onUndo: () => undoAddedItems([result.item.id]) });
+    const addedItem = await inspirationRepository.getSavedItem(item.id);
+    showUndoToast(t("已添加收藏项"), { subject: addedItem?.title ?? item.title, onUndo: () => undoAddedItems([item.id]) });
     return true;
   }
 
   async function importItems(kind: SavedItemKind, urls: string[], enrichMetadata: boolean) {
-    const origins = [...new Set(urls.map((url) => {
-      const target = new URL(url);
-      return `${target.protocol}//${target.hostname}/*`;
-    }))];
-    const permissionRequest = enrichMetadata
-      ? browser.permissions.request({ origins }).catch(() => false)
-      : Promise.resolve(false);
-    const [permissionGranted, result] = await Promise.all([
-      permissionRequest,
-      inspirationRepository.importUrls(kind, urls),
-    ]);
-    if (permissionGranted && result.addedItems.length > 0) {
-      const items = result.addedItems.map(({ id, url }) => {
-        const target = new URL(url);
-        return { itemId: id, url, permissionPattern: `${target.protocol}//${target.hostname}/*` };
-      });
-      try {
-        await browser.runtime.sendMessage({ type: "capture:remote-batch", items } satisfies ExtensionRequest);
-      } finally {
-        await browser.permissions.remove({ origins }).catch(() => false);
-      }
-    } else if (permissionGranted) {
-      await browser.permissions.remove({ origins }).catch(() => false);
-    }
+    const result = await importSavedUrls(kind, urls, enrichMetadata);
     void browser.runtime.sendMessage({ type: "ai:process" } satisfies ExtensionRequest);
     if (result.added > 0) {
       changeScope(kind);
