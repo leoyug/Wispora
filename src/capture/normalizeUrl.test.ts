@@ -6,6 +6,11 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("https://Example.com/work/?utm_source=test&id=4#intro"))
       .toBe("https://example.com/work?id=4");
   });
+  it("is idempotent for multiple trailing slashes and retains inner slashes", () => {
+    const canonical = normalizeUrl("https://example.com/archive//guide///?id=42");
+    expect(canonical).toBe("https://example.com/archive//guide?id=42");
+    expect(normalizeUrl(canonical)).toBe(canonical);
+  });
   it("cleans Sprrrint homepage links while keeping other parameters and paths", () => {
     expect(normalizeUrl("https://sprrrint.com/?limit=48&ref=feed")).toBe("https://sprrrint.com/");
     expect(normalizeUrl("https://sprrrint.com/?limit=48&q=type")).toBe("https://sprrrint.com/?q=type");

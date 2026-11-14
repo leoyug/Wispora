@@ -130,7 +130,7 @@ export class InspirationRepository {
       const nextKind = input.kind ?? item.kind;
       const kindChanged = nextKind !== item.kind;
       if (kindChanged) {
-        const collision = await this.findSavedItem(nextKind, item.canonicalUrl);
+        const collision = await this.findSavedItem(nextKind, normalizeUrl(item.canonicalUrl));
         if (collision) throw new Error("该链接已收藏为所选类型，请选择其他类型。");
       }
       const existingTags = normalizedNames.length
@@ -232,7 +232,7 @@ export class InspirationRepository {
     return this.database.transaction("rw", this.database.savedItems, this.database.snapshots, this.database.tasks, this.database.tags, async () => {
       const existing = await this.database.savedItems.get(deleted.item.id);
       if (existing) return true;
-      const collision = await this.database.savedItems.where("[kind+canonicalUrl]").equals([deleted.item.kind, deleted.item.canonicalUrl]).first();
+      const collision = await this.findSavedItem(deleted.item.kind, normalizeUrl(deleted.item.canonicalUrl));
       if (collision) return false;
       await this.database.savedItems.add(deleted.item);
       if (deleted.snapshots.length) await this.database.snapshots.bulkAdd(deleted.snapshots);
@@ -377,14 +377,16 @@ export class InspirationRepository {
     return this.database.savedItems.get(id);
   }
 
-  async findSavedItem(kind: SavedItem["kind"], url: string) {
-    const canonicalUrl = normalizeUrl(url);
+  private async findSavedItem(kind: SavedItem["kind"], canonicalUrl: string) {
     const exact = await this.database.savedItems.where("[kind+canonicalUrl]").equals([kind, canonicalUrl]).first();
-    if (exact || !isSprrrintHomepage(new URL(canonicalUrl))) return exact;
+    if (exact) return exact;
 
-    // Older records may still have the homepage's limit parameter in their indexed URL.
-    const homepage = new URL(canonicalUrl);
-    return this.database.savedItems.where("canonicalUrl").startsWith(`${homepage.origin}/?`)
+    const url = new URL(canonicalUrl);
+    const path = `${url.origin}${url.pathname}`;
+    // Older keys can retain trailing slashes or the Sprrrint homepage limit.
+    const prefixes = [`${path}/`];
+    if (isSprrrintHomepage(url)) prefixes.push(`${path}?`);
+    return this.database.savedItems.where("canonicalUrl").startsWithAnyOf(prefixes)
       .and((item) => item.kind === kind && normalizeUrl(item.canonicalUrl) === canonicalUrl)
       .first();
   }

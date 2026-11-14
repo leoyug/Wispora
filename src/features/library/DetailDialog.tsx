@@ -176,7 +176,7 @@ export function DetailDialog({ item, onClose, onToggleFavorite, onToggleRead, on
           <div ref={scrollRef} className="detail-scroll">
             {mode === "snapshot" ? (
               <SnapshotReader
-                url={item.url}
+                url={item.canonicalUrl}
                 title={snapshot?.title || item.title}
                 source={snapshot?.byline || item.siteHost}
                 status={snapshotLabel}

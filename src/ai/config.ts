@@ -5,6 +5,10 @@ const SETTINGS_KEY = "wanderland.ai.settings";
 const LOCAL_KEY = "wanderland.ai.apiKey";
 const SESSION_KEY = "wanderland.ai.sessionApiKey";
 
+type ScopedKey = Pick<AiSettings, "provider" | "endpoint"> & { apiKey: string };
+type StoredSettings = Partial<AiSettings> & { scopedKey?: true };
+let pendingSave: Promise<unknown> = Promise.resolve();
+
 export const defaultAiSettings: AiSettings = {
   enabled: false,
   provider: "openai",
@@ -33,37 +37,36 @@ function cleanSettings(value: Partial<AiSettings> | undefined): AiSettings {
 }
 
 export async function getAiSettings(): Promise<AiSettingsView> {
-  const stored = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
-  const settings = cleanSettings(stored[SETTINGS_KEY] as Partial<AiSettings> | undefined);
-  const session = await browser.storage.session.get(SESSION_KEY);
-  const apiKey = settings.apiKeyStorage === "local" ? stored[LOCAL_KEY] : session[SESSION_KEY];
-  return { ...settings, hasApiKey: typeof apiKey === "string" && apiKey.length > 0 };
+  const { settings, apiKey } = await getStoredCredential();
+  return { ...settings, hasApiKey: Boolean(apiKey) };
 }
 
 async function getStoredCredential() {
   const stored = await browser.storage.local.get([SETTINGS_KEY, LOCAL_KEY]);
-  const settings = cleanSettings(stored[SETTINGS_KEY] as Partial<AiSettings> | undefined);
-  const area = settings.apiKeyStorage === "local" ? browser.storage.local : browser.storage.session;
-  const key = settings.apiKeyStorage === "local" ? LOCAL_KEY : SESSION_KEY;
-  const value = await area.get(key);
-  return { provider: settings.provider, endpoint: settings.endpoint, apiKey: typeof value[key] === "string" ? value[key] as string : "" };
+  const saved = stored[SETTINGS_KEY] as StoredSettings | undefined;
+  const settings = cleanSettings(saved);
+  const value = settings.apiKeyStorage === "local"
+    ? stored[LOCAL_KEY]
+    : (await browser.storage.session.get(SESSION_KEY))[SESSION_KEY];
+  // Legacy keys are only valid alongside legacy settings. All new writes bind the key to its endpoint.
+  if (typeof value === "string" && saved && !saved.scopedKey && canReuseAiKey(settings, settings)) {
+    return { settings, apiKey: value };
+  }
+  const credential = value as ScopedKey | undefined;
+  const apiKey = typeof credential?.apiKey === "string" && canReuseAiKey(credential, settings) ? credential.apiKey : "";
+  return { settings, apiKey };
 }
 
 export async function getAiCredentials(): Promise<{ settings: AiSettings; apiKey: string } | null> {
-  const view = await getAiSettings();
-  if (!view.enabled || !view.hasApiKey) return null;
-  assertSecureAiEndpoint(view.endpoint);
-  const area = view.apiKeyStorage === "local" ? browser.storage.local : browser.storage.session;
-  const key = view.apiKeyStorage === "local" ? LOCAL_KEY : SESSION_KEY;
-  const stored = await area.get(key);
-  return { settings: view, apiKey: String(stored[key] ?? "") };
+  const credential = await getStoredCredential();
+  return credential.settings.enabled && credential.apiKey ? credential : null;
 }
 
 export async function getAiConnectionCredentials(input: AiSettings & { apiKey?: string }): Promise<{ settings: AiSettings; apiKey: string }> {
   assertSecureAiEndpoint(input.endpoint);
   const settings = cleanSettings(input);
   const previous = await getStoredCredential();
-  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous, settings) ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous.settings, settings) ? previous.apiKey : "");
   if (!apiKey) throw new Error("请先填写 API Key。");
   return { settings, apiKey };
 }
@@ -73,24 +76,29 @@ export async function getAiTestCredentials(input: AiSettings & { apiKey?: string
   return getAiConnectionCredentials(input);
 }
 
-export async function saveAiSettings(input: AiSettings & { apiKey?: string }): Promise<AiSettingsView> {
+export function saveAiSettings(input: AiSettings & { apiKey?: string }): Promise<AiSettingsView> {
+  const result = pendingSave.then(() => writeAiSettings(input));
+  pendingSave = result.catch(() => undefined);
+  return result;
+}
+
+async function writeAiSettings(input: AiSettings & { apiKey?: string }): Promise<AiSettingsView> {
   assertSecureAiEndpoint(input.endpoint);
   if (!input.model.trim()) throw new Error("请填写模型 ID。");
   const previous = await getStoredCredential();
   const settings = cleanSettings(input);
-  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous, settings) ? previous.apiKey : "");
+  const apiKey = input.apiKey?.trim() || (canReuseAiKey(previous.settings, settings) ? previous.apiKey : "");
   if (settings.enabled && !apiKey) throw new Error("请填写 API Key。");
-  await browser.storage.local.set({ [SETTINGS_KEY]: settings });
+  const saved = { ...settings, scopedKey: true } satisfies StoredSettings;
+  const credential: ScopedKey | null = apiKey ? { provider: settings.provider, endpoint: settings.endpoint, apiKey } : null;
   if (settings.apiKeyStorage === "local") {
-    if (apiKey) await browser.storage.local.set({ [LOCAL_KEY]: apiKey });
-    else await browser.storage.local.remove(LOCAL_KEY);
+    await browser.storage.local.set({ [SETTINGS_KEY]: saved, [LOCAL_KEY]: credential });
     await browser.storage.session.remove(SESSION_KEY);
   } else {
-    if (apiKey) await browser.storage.session.set({ [SESSION_KEY]: apiKey });
-    else await browser.storage.session.remove(SESSION_KEY);
-    await browser.storage.local.remove(LOCAL_KEY);
+    await browser.storage.session.set({ [SESSION_KEY]: credential });
+    await browser.storage.local.set({ [SETTINGS_KEY]: saved, [LOCAL_KEY]: null });
   }
-  return getAiSettings();
+  return { ...settings, hasApiKey: Boolean(apiKey) };
 }
 
 export async function hardenAiCredentialStorage() {

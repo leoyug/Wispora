@@ -9,8 +9,8 @@ export function normalizeUrl(input: string): string {
   for (const key of [...url.searchParams.keys()]) {
     if (key.startsWith("utm_") || key === "ref") url.searchParams.delete(key);
   }
+  url.pathname = url.pathname.replace(/\/+$/, "") || "/";
   if (isSprrrintHomepage(url)) url.searchParams.delete("limit");
-  if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/$/, "");
   return url.toString();
 }
 

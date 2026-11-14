@@ -15,7 +15,7 @@ function getPostCopy(text: string) {
 export function getInspirationPresentation(item: LibraryItem) {
   let url: URL;
   try {
-    url = new URL(item.url);
+    url = new URL(item.canonicalUrl);
   } catch {
     return { title: item.title, description: item.description, sourceLabel: item.sourceLabel };
   }

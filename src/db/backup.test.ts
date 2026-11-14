@@ -84,6 +84,18 @@ describe("local backup", () => {
     expect(await target.savedItems.count()).toBe(0);
     source.close(); target.close();
   });
+
+  it.each([true, false])("skips equivalent Sprrrint homepages when source is legacy: %s", async (sourceIsLegacy) => {
+    const source = makeDatabase();
+    const target = makeDatabase();
+    const imported = await new InspirationRepository(source).createSavedItem({ kind: "website", url: "https://sprrrint.com/" });
+    const existing = await new InspirationRepository(target).createSavedItem({ kind: "website", url: "https://sprrrint.com/", title: "Keep existing" });
+    const [legacy, id] = sourceIsLegacy ? [source, imported.item.id] : [target, existing.item.id];
+    await legacy.savedItems.update(id, { canonicalUrl: "https://sprrrint.com/?limit=48" });
+    expect(await restoreBackup(parseBackup(await createBackup(source)), target)).toMatchObject({ added: 0, skipped: 1 });
+    expect(await target.savedItems.toArray()).toMatchObject([{ id: existing.item.id, title: "Keep existing" }]);
+    source.close(); target.close();
+  });
 });
 
 describe("digest backup", () => {

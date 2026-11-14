@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { aiProviderPresets } from "./presets";
-import { getAiSettings, getAiTestCredentials, hardenAiCredentialStorage, saveAiSettings } from "./config";
+import { getAiCredentials, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage, saveAiSettings } from "./config";
 
 function storageArea() {
   const values: Record<string, unknown> = {};
@@ -27,12 +27,12 @@ describe("AI settings storage", () => {
 
     await saveAiSettings({ enabled: true, provider: "custom", endpoint: "https://api.example.com/v1/", model: "model", apiKeyStorage: "session", apiKey: "secret" });
     expect(Object.values(local.values)).not.toContain("secret");
-    expect(Object.values(session.values)).toContain("secret");
+    expect(session.values["wanderland.ai.sessionApiKey"]).toMatchObject({ apiKey: "secret" });
     expect(await getAiSettings()).toEqual({ enabled: true, provider: "custom", endpoint: "https://api.example.com/v1", model: "model", apiKeyStorage: "session", hasApiKey: true });
 
     await saveAiSettings({ enabled: false, provider: "custom", endpoint: "https://api.example.com/v1", model: "model", apiKeyStorage: "local" });
-    expect(Object.values(session.values)).not.toContain("secret");
-    expect(Object.values(local.values)).toContain("secret");
+    expect(session.values["wanderland.ai.sessionApiKey"]).toBeUndefined();
+    expect(local.values["wanderland.ai.apiKey"]).toMatchObject({ apiKey: "secret" });
     expect(await getAiSettings()).toMatchObject({ enabled: false, apiKeyStorage: "local", hasApiKey: true });
   });
 
@@ -65,7 +65,7 @@ describe("AI settings storage", () => {
     const view = await saveAiSettings({ enabled: false, provider: "deepseek", endpoint: "https://api.deepseek.com", model: "deepseek-v4-flash", apiKeyStorage: "session" });
 
     expect(view.hasApiKey).toBe(false);
-    expect(Object.values(session.values)).not.toContain("openai-secret");
+    expect(session.values["wanderland.ai.sessionApiKey"]).toBeNull();
   });
 
   it("preserves the saved settings and key when an enabled endpoint changes origin without a new key", async () => {
@@ -76,9 +76,48 @@ describe("AI settings storage", () => {
     await saveAiSettings({ ...settings, apiKey: "test-secret" });
     await expect(saveAiSettings({ ...settings, endpoint: "https://api.example.net/v1" })).rejects.toThrow("请填写 API Key。");
     expect(await getAiSettings()).toEqual({ ...settings, hasApiKey: true });
-    expect(Object.values(session.values)).toContain("test-secret");
+    expect(session.values["wanderland.ai.sessionApiKey"]).toMatchObject({ apiKey: "test-secret" });
 
     await expect(saveAiSettings({ ...settings, endpoint: "https://api.example.com/v2" })).resolves.toMatchObject({ hasApiKey: true });
+  });
+
+  it("never pairs old settings with a new origin's session key during a concurrent read", async () => {
+    const local = storageArea();
+    const session = storageArea();
+    vi.stubGlobal("browser", { storage: { local, session } });
+    const settings = { enabled: true, provider: "custom" as const, endpoint: "https://api.example.com/v1", model: "model", apiKeyStorage: "session" as const };
+    const next = { ...settings, endpoint: "https://api.example.net/v1" };
+    await saveAiSettings({ ...settings, apiKey: "old-key" });
+    const get = session.get;
+    for (const read of [() => getAiTestCredentials(settings), getAiCredentials]) {
+      await saveAiSettings({ ...settings, apiKey: "old-key" });
+      const entered = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      vi.spyOn(session, "get").mockImplementationOnce(async (key) => {
+        entered.resolve();
+        await resume.promise;
+        return get(key);
+      });
+      const pending = read().catch((error: Error) => error.message);
+      await entered.promise;
+      await saveAiSettings({ ...next, apiKey: "new-key" });
+      resume.resolve();
+      expect([null, "请先填写 API Key。"]).toContain(await pending);
+      expect(await getAiCredentials()).toEqual({ settings: next, apiKey: "new-key" });
+    }
+  });
+
+  it.each(["local", "session"] as const)("retains and scopes a legacy %s key on the next save", async (apiKeyStorage) => {
+    const local = storageArea();
+    const session = storageArea();
+    vi.stubGlobal("browser", { storage: { local, session } });
+    const settings = { enabled: true, provider: "custom" as const, endpoint: "https://api.example.com/v1", model: "model", apiKeyStorage };
+    local.values["wanderland.ai.settings"] = settings;
+    const [area, key] = apiKeyStorage === "local" ? [local, "wanderland.ai.apiKey"] : [session, "wanderland.ai.sessionApiKey"];
+    area.values[key] = "legacy-key";
+    expect(await getAiCredentials()).toEqual({ settings, apiKey: "legacy-key" });
+    await saveAiSettings(settings);
+    expect(area.values[key]).toEqual({ provider: settings.provider, endpoint: settings.endpoint, apiKey: "legacy-key" });
   });
 
   it("resolves test credentials without persisting an unsaved key", async () => {

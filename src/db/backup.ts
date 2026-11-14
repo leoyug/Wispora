@@ -1,5 +1,6 @@
 import { z } from "zod";
 import DOMPurify from "dompurify";
+import { normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { CoverData, PersistentTask, SavedItem, SavedView, Snapshot, Tag } from "@/src/domain/inspiration";
 import type { ContentDigest, DigestEntry } from "@/src/domain/digest";
 import { db, type WisporaDatabase } from "./database";
@@ -127,12 +128,13 @@ export async function restoreBackup(backup: Backup, database: WisporaDatabase = 
       tagMap.set(tag.id, id);
       if (!existing) { tagsToAdd.push({ ...tag, id, normalizedName, usageCount: 0 }); tagsByName.set(normalizedName, id); }
     }
-    const existingKeys = new Set(existingItems.map((item) => `${item.kind}\0${item.canonicalUrl}`));
+    const itemKey = (item: SavedItem) => `${item.kind}\0${normalizeUrl(item.canonicalUrl)}`;
+    const existingKeys = new Set(existingItems.map(itemKey));
     const itemMap = new Map<string, string>();
     const snapshotMap = new Map(valid.snapshots.map((snapshot) => [snapshot.id, nextId(snapshot.id)]));
     const itemsToAdd: SavedItem[] = [];
     for (const item of items) {
-      const key = `${item.kind}\0${item.canonicalUrl}`;
+      const key = itemKey(item);
       if (existingKeys.has(key)) continue;
       const id = nextId(item.id);
       itemMap.set(item.id, id);

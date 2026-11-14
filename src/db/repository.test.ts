@@ -3,6 +3,7 @@ import Dexie from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SavedItem } from "@/src/domain/inspiration";
 import type { PageCapture } from "@/src/capture/types";
+import { getInspirationPresentation } from "@/src/components/inspiration/getInspirationPresentation";
 import { WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
 
@@ -364,6 +365,32 @@ describe("InspirationRepository", () => {
     expect(await repository.listLibraryItems()).toMatchObject([
       { url, canonicalUrl: "https://example.com/guide", sourceLabel: "example.com/guide" },
     ]);
+    database.close();
+  });
+
+  it("deduplicates multiple trailing slashes against current and legacy keys", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/guide//?id=42";
+    const first = await repository.createSavedItem({ kind: "website", url });
+    expect(first.item.canonicalUrl).toBe("https://example.com/guide?id=42");
+    expect(await repository.createSavedItem({ kind: "website", url })).toMatchObject({ created: false, item: { id: first.item.id } });
+    await database.savedItems.update(first.item.id, { canonicalUrl: "https://example.com/guide/?id=42" });
+    expect(await repository.createSavedItem({ kind: "website", url })).toMatchObject({ created: false, item: { id: first.item.id } });
+    const article = await repository.createSavedItem({ kind: "article", url });
+    await expect(repository.updateSavedItem(article.item.id, { kind: "website" })).rejects.toThrow("该链接已收藏为所选类型");
+    database.close();
+  });
+
+  it("uses the final X address for presentation and the original short link for navigation", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://t.co/short";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({ url: "https://x.com/designer/status/123" }));
+    const [article] = await repository.listLibraryItems();
+    expect(article?.url).toBe(url);
+    expect(getInspirationPresentation(article!).sourceLabel).toBe("@designer");
     database.close();
   });
 
