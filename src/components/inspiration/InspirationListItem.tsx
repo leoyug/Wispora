@@ -4,6 +4,7 @@ import type { LibraryItem } from "@/src/domain/inspiration";
 import { cn } from "@/src/lib/cn";
 import { CoverArt } from "./CoverArt";
 import { FavoriteButton } from "./FavoriteButton";
+import { ReadStatusButton } from "./ReadStatusButton";
 import { getInspirationPresentation } from "./getInspirationPresentation";
 import { SiteIcon } from "./SiteIcon";
 import { TagSummary } from "./TagSummary";
@@ -13,18 +14,18 @@ interface InspirationListItemProps {
   variant?: "detail" | "compact";
   onOpen: () => void;
   onTagClick: (tag: string) => void;
+  onToggleRead?: () => void;
   onToggleFavorite: () => void;
   onContextMenu?: MouseEventHandler<HTMLElement>;
 }
 
-export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite, onContextMenu, variant = "detail" }: InspirationListItemProps) {
+export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite, onToggleRead, onContextMenu, variant = "detail" }: InspirationListItemProps) {
   const isCompact = variant === "compact";
-  const displayUrl = item.url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
   const hasCoverImage = Boolean(item.cover.image || item.cover.blob);
   const presentation = getInspirationPresentation(item);
 
   return (
-    <article className={cn("inspiration-list-item", `kind-${item.kind}`, isCompact && "is-compact-list")} tabIndex={0} onClick={onOpen} onContextMenu={onContextMenu} onKeyDown={(event) => {
+    <article className={cn("inspiration-list-item", `kind-${item.kind}`, isCompact && "is-compact-list")} tabIndex={0} onClick={(event) => { if (!(event.target instanceof Element && event.target.closest("button"))) onOpen(); }} onContextMenu={onContextMenu} onKeyDown={(event) => {
       if (event.target !== event.currentTarget) return;
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(); }
       if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
@@ -39,7 +40,7 @@ export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite
           <h2 className="compact-list-title" title={item.title}>{item.title}</h2>
         </div>
         <a className="card-url-link compact-list-url" href={item.url} target="_blank" rel="noreferrer" title={item.url} onClick={(event) => event.stopPropagation()}>
-          <span className="card-url-text">{displayUrl}</span><RiArrowRightUpLine size={14} aria-hidden="true" />
+          <span className="card-url-text">{item.sourceLabel}</span><RiArrowRightUpLine size={14} aria-hidden="true" />
         </a>
       </> : <>
         <div className="list-item-copy">
@@ -54,7 +55,10 @@ export function InspirationListItem({ item, onOpen, onTagClick, onToggleFavorite
         </div>
         {item.kind === "website" && hasCoverImage ? <div className="list-item-cover"><CoverArt item={item} /></div> : null}
         {item.kind === "follow" ? <SiteIcon item={item} variant="avatar" /> : null}
-        <FavoriteButton isFavorite={item.isFavorite} onToggle={onToggleFavorite} />
+        <div className="source-actions">
+          {item.kind === "article" && onToggleRead ? <ReadStatusButton isRead={item.isRead} onToggle={onToggleRead} /> : null}
+          <FavoriteButton isFavorite={item.isFavorite} onToggle={onToggleFavorite} />
+        </div>
       </>}
     </article>
   );

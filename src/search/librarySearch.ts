@@ -1,5 +1,5 @@
 import MiniSearch from "minisearch";
-import { isSavedItemProcessed, type LibraryItem, type LibraryScope } from "@/src/domain/inspiration";
+import { isUnreadArticle, isSavedItemProcessed, type LibraryItem, type LibraryScope } from "@/src/domain/inspiration";
 import { expandSearchFields, readSearchTimeRange, searchTimeStart, type SearchField, type SearchTimeRange } from "./searchQuery";
 
 export type LibrarySortOrder = "newest" | "oldest" | "relevance";
@@ -63,6 +63,7 @@ export function queryLibraryItems(items: LibraryItem[], index: LibrarySearchInde
   tagIds?: readonly string[];
   fields?: readonly SearchField[];
   timeRange?: SearchTimeRange;
+  unreadArticlesOnly?: boolean;
   now?: number;
   sort: LibrarySortOrder;
 }) {
@@ -79,7 +80,8 @@ export function queryLibraryItems(items: LibraryItem[], index: LibrarySearchInde
     if (item.archivedAt || (scores && !scores.has(item.id)) || (since !== null && (item.createdAt < since || item.createdAt > now))) return false;
     const scopeMatches = options.scope === "all" || (options.scope === "favorites" ? item.isFavorite
       : options.scope === "unprocessed" ? !isSavedItemProcessed(item) : item.kind === options.scope);
-    return scopeMatches && (options.tags ?? []).every((tag) => item.tags.includes(tag))
+    return scopeMatches && (!options.unreadArticlesOnly || isUnreadArticle(item))
+      && (options.tags ?? []).every((tag) => item.tags.includes(tag))
       && (options.tagIds ?? []).every((id) => item.tagIds.includes(id));
   });
   return matches.sort((a, b) => {

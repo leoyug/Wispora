@@ -3,6 +3,8 @@ import Dexie from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SavedItem } from "@/src/domain/inspiration";
 import type { PageCapture } from "@/src/capture/types";
+import { readRemoteMetadata } from "@/src/capture/readRemoteMetadata";
+import { getInspirationPresentation } from "@/src/components/inspiration/getInspirationPresentation";
 import { WisporaDatabase } from "./database";
 import { InspirationRepository } from "./repository";
 
@@ -33,6 +35,27 @@ afterEach(async () => {
 });
 
 describe("InspirationRepository", () => {
+  it("toggles reading status only for articles and starts reclassified items unread", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/reading";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    expect(item.isRead).toBeUndefined();
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBe(true);
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBe(false);
+
+    await repository.toggleArticleRead(item.id);
+    const edit = { title: item.title, description: "", tags: [] };
+    await repository.updateSavedItem(item.id, { ...edit, kind: "website" });
+    await repository.toggleArticleRead(item.id);
+    expect((await repository.getSavedItem(item.id))?.isRead).toBeUndefined();
+    await repository.updateSavedItem(item.id, { ...edit, kind: "article" });
+    expect((await repository.getSavedItem(item.id))?.isRead).toBeUndefined();
+    database.close();
+  });
+
   it("records real detail opens without changing the saved or edited timestamp", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);
@@ -199,6 +222,54 @@ describe("InspirationRepository", () => {
     upgraded.close();
   });
 
+  it("stores a clean X article title and lets AI fill a title-only preview", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://x.com/example/status/123";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({
+      url,
+      canonicalUrl: url,
+      title: "Example (@example) on X",
+      documentTitle: "(5) X 上的 Example：“How I work with Agents” / X",
+      description: "How I work with Agents https://t.co/example",
+    }));
+
+    expect(await database.savedItems.get(item.id)).toMatchObject({
+      title: "How I work with Agents",
+      description: "",
+    });
+    const [task] = await repository.listRunnableAiTasks();
+    await repository.markAiStarted(task!.id);
+    await repository.completeAiTask(task!.id, { description: "The article explains how to delegate work to agents.", tags: ["AI"] });
+    expect(await database.savedItems.get(item.id)).toMatchObject({
+      description: "The article explains how to delegate work to agents.",
+      descriptionSource: "ai",
+    });
+    database.close();
+  });
+
+  it("refreshes an existing article cover without replacing the snapshot or a manually selected cover", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/article";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({ ogImage: "https://example.com/brand.png" }));
+    const snapshot = await repository.getSnapshot(item.id);
+    const image = "https://example.com/article.webp";
+    expect(await repository.refreshArticleCover(item.id, url, image)).toBe(true);
+    expect((await repository.getSavedItem(item.id))?.cover.image).toBe(image);
+    expect(await repository.getSnapshot(item.id)).toEqual(snapshot);
+
+    await repository.updateSavedItem(item.id, {
+      title: "A captured article", description: "Page description", tags: [],
+      coverBlob: new Blob(["manual"], { type: "image/png" }),
+    });
+    expect(await repository.refreshArticleCover(item.id, url, image)).toBe(false);
+    expect((await repository.getSavedItem(item.id))?.cover.isUserSelected).toBe(true);
+    database.close();
+  });
+
   it("persists a sanitized snapshot and preserves a user description", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);
@@ -245,18 +316,139 @@ describe("InspirationRepository", () => {
     database.close();
   });
 
-  it("merges a captured canonical duplicate instead of creating two items", async () => {
+  it("merges a redirect duplicate instead of creating two items", async () => {
     const database = createDatabase();
     const repository = new InspirationRepository(database);
     const canonical = await repository.createSavedItem({ kind: "article", url: "https://example.com/article" });
     const alias = await repository.createSavedItem({ kind: "article", url: "https://example.com/article?edition=feed" });
 
-    const result = await repository.completeCapture(alias.item.id, createCapture());
+    const result = await repository.completeCapture(alias.item.id, createCapture({ canonicalUrl: "https://example.com/" }));
 
     expect(result).toEqual({ itemId: canonical.item.id, mergedDuplicate: true });
     expect(await database.savedItems.count()).toBe(1);
     expect(await database.snapshots.where("itemId").equals(canonical.item.id).count()).toBe(1);
     expect(await database.tasks.where("itemId").equals(alias.item.id).count()).toBe(0);
+    database.close();
+  });
+
+  it("preserves a complete snapshot when remote metadata merges a redirected alias", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/article/";
+    const { item } = await repository.createSavedItem({ kind: "article", url, description: "My notes" });
+    await repository.completeCapture(item.id, createCapture({ url, baseUrl: url, ogImage: "https://example.com/cover.jpg" }));
+    const previous = await repository.getSnapshot(item.id);
+    expect(previous?.completeness).toBe("complete");
+    const aliasUrl = "https://short.example/redirect";
+    const { item: alias } = await repository.createSavedItem({ kind: "article", url: aliasUrl });
+    const metadata = readRemoteMetadata('<title>New page title</title><link rel="canonical" href="/elsewhere">', aliasUrl, url);
+
+    expect(await repository.completeCapture(alias.id, metadata, "manual-url")).toEqual({ itemId: item.id, mergedDuplicate: true });
+    expect(await database.savedItems.count()).toBe(1);
+    expect(await repository.getSnapshot(item.id)).toEqual(previous);
+    expect(await repository.getSavedItem(item.id)).toMatchObject({
+      originalUrl: url, title: "New page title", description: "My notes", snapshotStatus: "complete",
+      cover: { image: "https://example.com/cover.jpg" },
+    });
+    expect(await database.tasks.where("itemId").equals(item.id).and((task) => task.type === "capture").first()).toMatchObject({ status: "complete" });
+    database.close();
+  });
+
+  it("opens the original homepage and detects duplicates against a legacy saved URL", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const legacy = await repository.createSavedItem({ kind: "website", url: "https://sprrrint.com/?limit=48" });
+    await database.savedItems.update(legacy.item.id, { canonicalUrl: legacy.item.originalUrl });
+
+    const result = await repository.createSavedItem({ kind: "website", url: "https://sprrrint.com/" });
+    expect(result).toMatchObject({ created: false, item: { id: legacy.item.id } });
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { id: legacy.item.id, url: "https://sprrrint.com/?limit=48", sourceLabel: "sprrrint.com" },
+    ]);
+    database.close();
+  });
+
+  it.each(["article", "website"] as const)("prevents reclassification when the %s record has a legacy URL", async (legacyKind) => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const article = await repository.createSavedItem({ kind: "article", url: "https://sprrrint.com/" });
+    const website = await repository.createSavedItem({ kind: "website", url: "https://sprrrint.com/" });
+    await database.savedItems.update((legacyKind === "article" ? article : website).item.id, { canonicalUrl: "https://sprrrint.com/?limit=48" });
+
+    await expect(repository.updateSavedItem(article.item.id, { kind: "website" })).rejects.toThrow("该链接已收藏为所选类型");
+    expect((await repository.getSavedItem(article.item.id))?.kind).toBe("article");
+    expect(await database.savedItems.count()).toBe(2);
+    database.close();
+  });
+
+  it("keeps the fragment and trailing slash when opening a collection link", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/guide/?utm_source=test#step-3";
+    await repository.createSavedItem({ kind: "article", url });
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { url, canonicalUrl: "https://example.com/guide", sourceLabel: "example.com/guide" },
+    ]);
+    database.close();
+  });
+
+  it("deduplicates multiple trailing slashes against current and legacy keys", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://example.com/guide//?id=42";
+    const first = await repository.createSavedItem({ kind: "website", url });
+    expect(first.item.canonicalUrl).toBe("https://example.com/guide?id=42");
+    expect(await repository.createSavedItem({ kind: "website", url })).toMatchObject({ created: false, item: { id: first.item.id } });
+    await database.savedItems.update(first.item.id, { canonicalUrl: "https://example.com/guide/?id=42" });
+    expect(await repository.createSavedItem({ kind: "website", url })).toMatchObject({ created: false, item: { id: first.item.id } });
+    const article = await repository.createSavedItem({ kind: "article", url });
+    await expect(repository.updateSavedItem(article.item.id, { kind: "website" })).rejects.toThrow("该链接已收藏为所选类型");
+    database.close();
+  });
+
+  it("uses the final X address for presentation and the original short link for navigation", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const url = "https://t.co/short";
+    const { item } = await repository.createSavedItem({ kind: "article", url });
+    await repository.completeCapture(item.id, createCapture({ url: "https://x.com/designer/status/123" }));
+    const [article] = await repository.listLibraryItems();
+    expect(article?.url).toBe(url);
+    expect(getInspirationPresentation(article!).sourceLabel).toBe("@designer");
+    database.close();
+  });
+
+  it("restores a deleted legacy duplicate with its snapshot and exact URL", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const current = await repository.createSavedItem({ kind: "article", url: "https://example.com/guide" });
+    const legacy = await repository.createSavedItem({ kind: "article", url: "https://example.com/legacy" });
+    await repository.completeCapture(legacy.item.id, createCapture({
+      url: "https://example.com/legacy/", baseUrl: "https://example.com/legacy/",
+    }));
+    await database.savedItems.update(legacy.item.id, { canonicalUrl: "https://example.com/guide/" });
+    const deleted = await repository.deleteSavedItem(legacy.item.id);
+    expect(await repository.restoreSavedItem(deleted!)).toBe(true);
+    expect(await repository.getSavedItem(current.item.id)).toBeDefined();
+    expect(await repository.getSavedItem(legacy.item.id)).toMatchObject({ canonicalUrl: "https://example.com/guide/" });
+    expect(await repository.getSnapshot(legacy.item.id)).toMatchObject({
+      sourceUrl: "https://example.com/legacy/", baseUrl: "https://example.com/legacy/",
+    });
+    database.close();
+  });
+
+  it("keeps content parameters from the final page when the declared canonical omits them", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const { item } = await repository.createSavedItem({ kind: "article", url: "https://example.com/out" });
+    await repository.completeCapture(item.id, createCapture({
+      url: "https://example.com/read?id=42&ref=feed",
+      canonicalUrl: "https://example.com/read",
+    }));
+
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { id: item.id, url: "https://example.com/out", canonicalUrl: "https://example.com/read?id=42", sourceLabel: "example.com/read?id=42" },
+    ]);
     database.close();
   });
 
@@ -293,6 +485,20 @@ describe("InspirationRepository", () => {
     expect(item?.cover).toMatchObject({ blob: coverBlob, isUserSelected: true });
     expect(tags.map((tag) => [tag.name, tag.usageCount])).toEqual(expect.arrayContaining([["设计", 1], ["前端", 1]]));
     expect(item?.tagIds).toHaveLength(2);
+    database.close();
+  });
+
+  it("preserves description and tags added since a title-only edit began", async () => {
+    const database = createDatabase();
+    const repository = new InspirationRepository(database);
+    const { item } = await repository.createSavedItem({ kind: "article", url: "https://example.com/article" });
+    await repository.completeCapture(item.id, createCapture());
+    await repository.updateSavedItem(item.id, { tags: ["Design"] });
+
+    await repository.updateSavedItem(item.id, { title: "My title" });
+    expect(await repository.listLibraryItems()).toMatchObject([
+      { title: "My title", description: "Page description", descriptionSource: "page", tags: ["Design"] },
+    ]);
     database.close();
   });
 

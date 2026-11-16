@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { aiProviderPresets, aiRequestOptions } from "./presets";
 import { AiProviderError, OpenAiCompatibleProvider } from "./openAiCompatibleProvider";
 
 const input = {
@@ -23,6 +24,42 @@ describe("OpenAiCompatibleProvider", () => {
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
     expect(body).toMatchObject({ model: "test", max_tokens: 1, messages: [{ role: "user", content: "Reply OK." }] });
     expect(body).not.toHaveProperty("response_format");
+  });
+
+  it.each(["gemini", "qwen", "moonshot", "openrouter"] as const)("uses %s parameters for both testing and analysis", async (id) => {
+    const preset = aiProviderPresets[id];
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ description: "A design article", tags: ["Design", "UI", "Web"] }) } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new OpenAiCompatibleProvider({ endpoint: preset.endpoint, model: preset.model, apiKey: "test-secret", ...aiRequestOptions({ provider: id, model: preset.model }) });
+    await provider.testConnection();
+    await expect(provider.analyze(input)).resolves.toMatchObject({ tags: ["Design", "UI", "Web"] });
+    const bodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body as string));
+    expect(fetchMock.mock.calls.every((call) => call[0] === `${preset.endpoint}/chat/completions`)).toBe(true);
+    for (const body of bodies) {
+      expect(body.model).toBe(preset.model);
+      if (id === "qwen") expect(body.enable_thinking).toBe(false);
+      if (id === "moonshot" || id === "gemini") {
+        expect(body).not.toHaveProperty("temperature");
+        expect(body.reasoning_effort).toBe(id === "moonshot" ? "low" : "minimal");
+      }
+    }
+    expect(bodies[1]).toMatchObject({ response_format: { type: "json_object" } });
+    if (id === "moonshot") expect(bodies[1].max_tokens).toBeGreaterThanOrEqual(16000);
+  });
+
+  it.each(["gpt-5", "gpt-5.4", "gpt-6.1-terra", "o3"])("adapts modern OpenAI chat parameters for %s", async (model) => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ description: "A design article", tags: ["Design", "UI", "Web"] }) } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new OpenAiCompatibleProvider({ endpoint: "https://api.openai.com/v1", model, apiKey: "test-secret", ...aiRequestOptions({ provider: "openai", model }) });
+    await provider.testConnection();
+    await provider.analyze(input);
+    const bodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body as string));
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty("max_tokens");
+      expect(body).not.toHaveProperty("temperature");
+      expect(body.max_completion_tokens).toBeGreaterThan(0);
+    }
+    expect(bodies[1].max_completion_tokens).toBeGreaterThanOrEqual(16000);
   });
 
   it("accepts a valid structured response", async () => {

@@ -1,9 +1,9 @@
-import { RiCloseLine } from "@remixicon/react";
+import { Badge } from "./Badge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { Tag } from "@/src/domain/inspiration";
-import { t } from "@/src/i18n/ui";
+import { t, tf } from "@/src/i18n/ui";
 
 interface TagInputProps {
   label: string;
@@ -139,7 +139,7 @@ export function TagInput({ label, tags, options, onChange, placement = "auto", r
   return <div className="tag-input" ref={rootRef} onBlur={(event) => { if (!rootRef.current?.contains(event.relatedTarget as Node)) closeMenu(); }}>
     <span className="tag-input-label">{label}</span>
     <div className="tag-input-control" onClick={() => inputRef.current?.focus()}>
-      {tags.map((tag) => <button key={tag} type="button" className="tag-input-chip" onClick={(event) => { event.stopPropagation(); onChange(tags.filter((item) => item !== tag)); }}>{tag}<RiCloseLine size={13} /></button>)}
+      {tags.map((tag) => <Badge key={tag} className="tag-input-chip" removable aria-label={tf("移除标签 {name}", { name: tag })} onPress={(event) => { event.stopPropagation(); onChange(tags.filter((item) => item !== tag)); }}>{tag}</Badge>)}
       <input ref={inputRef} autoFocus={autoFocus} value={query} onFocus={openMenu} onChange={(event) => { setQuery(event.target.value); setActiveIndex(-1); setOpen(true); }} onKeyDown={onKeyDown} placeholder={tags.length ? t("继续添加") : t("添加标签")} aria-label={label} aria-expanded={open} aria-controls="tag-input-listbox" role="combobox" />
     </div>
     {open && popoverStyle ? createPortal(<div ref={popoverRef} className="tag-input-popover" id="tag-input-listbox" role="listbox" style={popoverStyle} onMouseLeave={() => setHoveredIndex(-1)}>

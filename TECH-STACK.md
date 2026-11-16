@@ -76,7 +76,7 @@ Intent UI 当前 registry 是共享 UI 组件的首选结构来源。组件通�
 | `Switch` | Switch | 使用 `SwitchField + SwitchButton`，覆盖开关、焦点和禁用态 |
 | `RadioGroup` | Radio Group | 用于互斥选项，不用 checkbox 或 Switch 代替 |
 | `CheckboxGroup` / `CheckboxField` / `Checkbox` | Checkbox | 沿用当前 registry 的 Group → Field → Button 分层、slot 与受控多选；通过 CheckboxIndicator 复用既有 FacetFilter 的 16px 形状与勾线，状态使用语义 token |
-| `SegmentedControl` | Toggle Group | 使用单选 `ToggleButtonGroup` 表达布局和模式切换 |
+| `ToggleGroup / ToggleGroupItem` | Toggle Group | 表达可取消单选与多选胶囊；排列使用 `LibraryLayoutSelect` |
 | `Badge` | Badge | 使用无 `#` 前缀的标签名称和标签语义色 |
 | `Card` | Card | 作为无业务语义的基础表面，领域卡片另行组合 |
 | `FacetFilter` | Popover + Search Field + Checkbox | 保留多选筛选、数量和清除操作 |
@@ -191,6 +191,12 @@ Mozilla Readability 会修改传入的 DOM，因此必须传入页面克隆。Re
 
 参考：[Mozilla Readability](https://github.com/mozilla/readability)、[DOMPurify](https://github.com/cure53/DOMPurify)
 
+### 收藏网址规范化
+
+当前页使用已打开标签页的地址，采集完成后以实际采集地址为准。手动添加和批量导入先保存输入地址，只有用户开启补全且请求成功后才使用最终响应地址。页面声明的 canonical 链接不覆盖实际地址，避免丢失区分子页面或文章的参数。
+
+`normalizeUrl` 移除 `utm_*`、`ref`、末尾斜杠和已确认仅控制展示的站点参数。目前仅在 Sprrrint 首页移除 `limit`。其他查询参数和子页面路径保留。新增收藏、转换类型和合并恢复备份按内容类型与规范化 URL 去重。卡片和快照按采集后的地址识别来源，打开网页使用 `originalUrl`。快照相对链接使用实际采集地址或文档基准地址。补全元数据时保留已有正文和更完整的快照。历史记录不会批量合并。
+
 ### 5.2 权限策略
 
 V1 建议权限：
@@ -275,6 +281,9 @@ AI 输出必须是结构化 JSON，并通过 Zod Schema 校验。不合法输出
 - 明确说明 Key 保存在本地浏览器。
 - 默认不同步、不导出 Key。
 - 提供“仅当前会话保留”选项。
+- Key 和所属 Provider、Endpoint 的 origin 一起保存，读取时确认范围匹配。旧版 Key 在下次保存设置时写入所属范围。
+- 草稿 Key 同样绑定输入时的 Provider 和 origin。会话 Key 与设置版本对应，配置写入成功后回收旧版本。
+- AI 与收藏补全使用共享 Web Lock 协调授权请求、后台使用和回收。回收保留已启用 AI 的域名以及清单要求的权限。
 - 只将必要的页面摘要发送给配置的 Provider。
 - 在设置页显示风险提示。
 

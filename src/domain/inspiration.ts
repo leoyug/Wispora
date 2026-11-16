@@ -1,3 +1,5 @@
+export const readLaterViewId = "read-later";
+
 export type AiStatus = "complete" | "pending" | "failed";
 export type SavedItemKind = "website" | "article" | "follow";
 export type LibraryScope = "all" | "unprocessed" | "favorites" | SavedItemKind;
@@ -53,6 +55,8 @@ export interface SavedItem {
   kind: SavedItemKind;
   tagIds: string[];
   isFavorite: boolean;
+  /** A missing value represents unread, including in older local data. */
+  isRead?: boolean;
   archivedAt?: number;
   snapshotId?: string;
   snapshotStatus: SnapshotStatus;
@@ -73,6 +77,8 @@ export interface Snapshot {
   id: string;
   itemId: string;
   capturedAt: number;
+  sourceUrl?: string;
+  baseUrl?: string;
   title: string;
   byline?: string;
   excerpt?: string;
@@ -130,9 +136,9 @@ export interface LibraryItem extends SavedItem {
 
 export interface UpdateSavedItemInput {
   kind?: SavedItemKind;
-  title: string;
-  description: string;
-  tags: string[];
+  title?: string;
+  description?: string;
+  tags?: string[];
   coverBlob?: Blob;
   descriptionEdited?: boolean;
   siteIconBackground?: "auto" | "light" | "dark";
@@ -153,4 +159,8 @@ export interface CreateSavedItemInput {
 
 export function isSavedItemProcessed(item: Pick<SavedItem, "descriptionSource" | "tagIds">) {
   return item.descriptionSource === "user" || item.tagIds.length > 0;
+}
+
+export function isUnreadArticle(item: Pick<SavedItem, "kind" | "isRead">) {
+  return item.kind === "article" && item.isRead !== true;
 }

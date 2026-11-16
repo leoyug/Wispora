@@ -5,6 +5,7 @@ import { t } from "@/src/i18n/ui";
 interface FavoriteButtonProps {
   isFavorite: boolean;
   onToggle: () => void;
+  showLabel?: boolean;
 }
 
 /**
@@ -12,7 +13,7 @@ interface FavoriteButtonProps {
  * The bookmark artwork stays unchanged; a short pop and particle burst
  * acknowledge starring, matching the supplied like-button reference.
  */
-export function FavoriteButton({ isFavorite, onToggle }: FavoriteButtonProps) {
+export function FavoriteButton({ isFavorite, onToggle, showLabel = false }: FavoriteButtonProps) {
   return (
     <button
       className={`favorite-button${isFavorite ? " is-active" : ""}`}
@@ -35,6 +36,7 @@ export function FavoriteButton({ isFavorite, onToggle }: FavoriteButtonProps) {
         <span className="favorite-spark" style={{ "--spark-x": "10px", "--spark-y": "3px" } as CSSProperties} />
         <span className="favorite-spark" style={{ "--spark-x": "0px", "--spark-y": "11px" } as CSSProperties} />
       </span>
+      {showLabel ? <span className="detail-status-label">{isFavorite ? t("已加星标") : t("星标")}</span> : null}
     </button>
   );
 }

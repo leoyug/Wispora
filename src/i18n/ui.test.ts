@@ -55,9 +55,9 @@ describe("interface translations", () => {
     }
   });
 
-  it("provides English copy for literal translation calls in production UI", () => {
+  it("provides English copy for literal translation calls in UI and the component catalog", () => {
     const missing = new Set<string>();
-    const sources = import.meta.glob<string>(["../components/**/*.tsx", "../features/**/*.tsx", "../../entrypoints/**/*.tsx", "!../features/design-system/**"], { query: "?raw", import: "default", eager: true });
+    const sources = import.meta.glob<string>(["../components/**/*.tsx", "../features/**/*.tsx", "../../entrypoints/**/*.tsx"], { query: "?raw", import: "default", eager: true });
     for (const [path, source] of Object.entries(sources)) {
       const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
       const visit = (node: ts.Node) => {

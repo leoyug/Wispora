@@ -1,3 +1,4 @@
+import { matchesArticleCover, resolveArticleCoverUrl } from "./articleCover";
 import type { PageCapture } from "./types";
 
 const namedEntities: Record<string, string> = { amp: "&", apos: "'", gt: ">", lt: "<", nbsp: " ", quot: '"' };
@@ -30,6 +31,21 @@ function absoluteUrl(value: string, baseUrl: string) {
   }
 }
 
+function readArticleCover(html: string, baseUrl: string) {
+  for (const [, article] of html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi)) {
+    for (const [, header, figure] of (article ?? "").matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>(?:\s*<figure\b[^>]*>([\s\S]*?)<\/figure>)?/gi)) {
+      const markup = header ?? "";
+      const heading = decodeEntities(markup.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1]?.replace(/<[^>]+>/g, "") ?? "");
+      for (const [image] of `${markup}${figure ?? ""}`.matchAll(/<img\b[^>]*>/gi)) {
+        if (!matchesArticleCover(heading, attribute(image, "alt"), attribute(image, "itemprop"))) continue;
+        const url = resolveArticleCoverUrl(attribute(image, "src"), baseUrl);
+        if (url) return url;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function readRemoteMetadata(html: string, requestedUrl: string, responseUrl = requestedUrl): PageCapture {
   const meta = [...html.matchAll(/<meta\b[^>]*>/gi)].map((match) => match[0]);
   const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((match) => match[0]);
@@ -46,16 +62,20 @@ export function readRemoteMetadata(html: string, requestedUrl: string, responseU
     return tag ? absoluteUrl(attribute(tag, "href"), responseUrl) : undefined;
   };
   const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-  const title = decodeEntities(titleMatch?.[1] ?? "").replace(/\s+/g, " ").trim();
+  const documentTitle = decodeEntities(titleMatch?.[1] ?? "").replace(/\s+/g, " ").trim();
+  const title = metaContent("og:title", "twitter:title") || documentTitle || new URL(requestedUrl).hostname;
+  const description = metaContent("og:description", "description", "twitter:description");
   return {
+    title,
+    documentTitle,
+    description,
     url: responseUrl,
     canonicalUrl: linkHref((rel) => rel.split(/\s+/).includes("canonical")),
-    title: metaContent("og:title", "twitter:title") || title || new URL(requestedUrl).hostname,
-    description: metaContent("og:description", "description", "twitter:description"),
     siteName: metaContent("og:site_name") || undefined,
     cleanText: "",
     cleanHtml: "",
     completeness: "partial",
+    articleCover: readArticleCover(html, responseUrl),
     ogImage: absoluteUrl(metaContent("og:image", "twitter:image"), responseUrl),
     favicon: linkHref((rel) => rel.split(/\s+/).includes("icon")) ?? absoluteUrl("/favicon.ico", responseUrl),
   };

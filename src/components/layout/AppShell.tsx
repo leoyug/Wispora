@@ -1,3 +1,4 @@
+import { sidebarCssVariables } from "@/src/design-system/sidebar";
 import { RiArchiveLine, RiArchiveStackLine, RiArticleLine, RiArrowDownSLine, RiArrowLeftLine, RiBookmark3Line, RiBookmarkLine, RiDatabase2Line, RiInformationLine, RiInbox2Line, RiNewspaperLine, RiPaletteLine, RiPriceTag3Line, RiSettingsLine, RiSparkling2Line, RiUserFollowLine, RiWindowLine } from "@remixicon/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { isSavedItemProcessed, type LibraryItem, type LibrarySavedView, type LibraryScope, type SavedItemKind } from "@/src/domain/inspiration";
@@ -60,7 +61,7 @@ const settingsGroups: Array<{ label: string; items: Array<{ id: SettingsSection;
 export function AppShell({ items, activeScope, activeSavedView, savedViews, onScopeChange, onSavedViewChange, onSavedViewRename, onSavedViewDelete, onSavedViewMove, onOpenSettings, mode = "library", activeSettingsSection = "appearance", onSettingsSectionChange, onBackToLibrary, children }: AppShellProps) {
   const [areSavedViewsExpanded, setAreSavedViewsExpanded] = useState(true);
   const [isViewportNarrow, setIsViewportNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH_DEFAULT);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_WIDTH_DEFAULT);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarResizing, setIsSidebarResizing] = useState(false);
   const navigationRef = useRef<HTMLElement>(null);
@@ -209,7 +210,7 @@ export function AppShell({ items, activeScope, activeSavedView, savedViews, onSc
   const savedViewToggle = <Button type="button" variant="ghost" className="saved-view-toggle t-acc-head" aria-label={areSavedViewsExpanded ? t("收起快捷视图") : t("展开快捷视图")} aria-expanded={areSavedViewsExpanded} onPress={() => setAreSavedViewsExpanded((isExpanded) => !isExpanded)}><span className="t-acc-chevron"><RiArrowDownSLine size={18} /></span></Button>;
 
   return (
-    <div className={`app-shell ${mode === "settings" ? "is-settings" : ""} ${isSidebarCollapsed ? "is-sidebar-collapsed" : ""} ${isSidebarResizing ? "is-sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
+    <div className={`app-shell ${mode === "settings" ? "is-settings" : ""} ${isSidebarCollapsed ? "is-sidebar-collapsed" : ""} ${isSidebarResizing ? "is-sidebar-resizing" : ""}`} style={{ ...sidebarCssVariables, "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <aside className="sidebar">
         <div className="sidebar-resize-handle" role="separator" tabIndex={isViewportNarrow ? -1 : 0} aria-orientation="vertical" aria-label={t("调整侧边栏宽度")} aria-valuemin={SIDEBAR_WIDTH_COLLAPSED} aria-valuemax={SIDEBAR_WIDTH_MAX} aria-valuenow={sidebarWidth} aria-valuetext={isSidebarCollapsed ? t("已最小化") : tf("{count} 像素", { count: sidebarWidth })} onPointerDown={handleSidebarResizePointerDown} onPointerMove={handleSidebarResizePointerMove} onPointerUp={stopSidebarResize} onPointerCancel={stopSidebarResize} onKeyDown={handleSidebarResizeKeyDown} />
         {mode === "library" && isCompactSidebar ? <Tooltip content={t("返回首页")} placement="right" offset={10} className="sidebar-tooltip-bubble">{brandButton}</Tooltip> : brandButton}

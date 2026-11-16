@@ -1,17 +1,22 @@
-import { RiArrowRightUpLine, RiCloseLine, RiRefreshLine, RiSearchLine, RiShieldCheckLine } from "@remixicon/react";
+import { RiArrowRightUpLine, RiRefreshLine, RiSearchLine, RiShieldCheckLine } from "@remixicon/react";
 import { rise } from "cube-motion";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
+import { assertSecureAiEndpoint, canReuseAiKey, endpointPermissionPattern, defaultAiSettings } from "@/src/ai/config";
+import { withRequestedHostPermissions } from "@/src/ai/hostPermissions";
+import { importSavedUrls } from "@/src/features/import/importSavedUrls";
 import type { AiSettings, AiSettingsView, AiTaskSummary, ApiKeyStorage } from "@/src/ai/types";
-import { aiProviderPresets } from "@/src/ai/presets";
+import { BookmarkImportFields } from "@/src/components/import/BookmarkImportFields";
+import { useBookmarkImport } from "@/src/features/import/useBookmarkImport";
+import { AiModelSelect } from "@/src/components/ai/AiModelSelect";
+import { aiProviderOptions, aiProviderPresets } from "@/src/ai/presets";
 import type { ExtensionRequest } from "@/src/capture/types";
 import { AppShell, type SettingsSection } from "@/src/components/layout/AppShell";
 import { Button } from "@/src/components/ui/Button";
 import { BrandLogo } from "@/src/components/brand/BrandLogo";
 import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { Field, Input } from "@/src/components/ui/Field";
-import { SearchField, SearchInput } from "@/src/components/ui/SearchField";
+import { CompactSearchField } from "@/src/components/ui/SearchField";
 import { RadioGroup } from "@/src/components/ui/RadioGroup";
 import { SelectMenu } from "@/src/components/ui/SelectMenu";
 import { Switch } from "@/src/components/ui/Switch";
@@ -26,7 +31,7 @@ import { formatUiDate } from "@/src/i18n/date";
 import { DigestSettings } from "@/src/features/digest/DigestSettings";
 import { DigestHistoryPage } from "@/src/features/digest/DigestHistoryPage";
 import type { DigestKind } from "@/src/domain/digest";
-import { SettingsHeader, SettingsSectionHeading, SettingsCard, SettingsRow } from "./SettingsPrimitives";
+import { SettingsHeader, SettingsSectionHeading, SettingsCard, SettingsRow } from "@/src/components/settings/SettingsPrimitives";
 import { version as packageVersion } from "../../../package.json";
 
 const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
@@ -37,11 +42,6 @@ const apiKeyStorageOptions = [
   { value: "session" as const, label: "当前会话", description: "退出浏览器后需重新填写。" },
   { value: "local" as const, label: "保存在本地", description: "不会同步，但客户端 Key 仍可被读取。" },
 ];
-const aiProviderOptions = [
-  { value: "openai" as const, label: "OpenAI" },
-  { value: "deepseek" as const, label: "DeepSeek" },
-  { value: "custom" as const, label: "自定义服务" },
-];
 
 function sendExtensionMessage<T>(request: ExtensionRequest) {
   if (typeof browser === "undefined" || !browser.runtime?.sendMessage) {
@@ -50,69 +50,18 @@ function sendExtensionMessage<T>(request: ExtensionRequest) {
   return browser.runtime.sendMessage(request) as Promise<T>;
 }
 
-function extractBookmarkUrls(value: string) {
-  const candidates = [...new DOMParser().parseFromString(value, "text/html").querySelectorAll<HTMLAnchorElement>("a[href]")].map((anchor) => anchor.href);
-  const unique = new Set<string>();
-  for (const candidate of candidates) {
-    try {
-      const parsed = new URL(candidate.trim());
-      if (/^https?:$/.test(parsed.protocol)) unique.add(parsed.href);
-    } catch {
-      // Ignore invalid bookmark fragments and report when no usable URL remains.
-    }
-  }
-  return [...unique];
-}
-
 async function importBookmarkUrls(urls: string[], enrichMetadata: boolean) {
-  const origins = [...new Set(urls.map((url) => {
-    const target = new URL(url);
-    return `${target.protocol}//${target.hostname}/*`;
-  }))];
-  const permissionRequest = enrichMetadata ? browser.permissions.request({ origins }).catch(() => false) : Promise.resolve(false);
-  const [permissionGranted, result] = await Promise.all([
-    permissionRequest,
-    inspirationRepository.importUrls("website", urls),
-  ]);
-  if (permissionGranted && result.addedItems.length > 0) {
-    const items = result.addedItems.map(({ id, url }) => {
-      const target = new URL(url);
-      return { itemId: id, url, permissionPattern: `${target.protocol}//${target.hostname}/*` };
-    });
-    try {
-      await sendExtensionMessage({ type: "capture:remote-batch", items } satisfies ExtensionRequest);
-    } finally {
-      await browser.permissions.remove({ origins }).catch(() => false);
-    }
-  } else if (permissionGranted) {
-    await browser.permissions.remove({ origins }).catch(() => false);
-  }
+  const result = await importSavedUrls("website", urls, enrichMetadata);
   void sendExtensionMessage({ type: "ai:process" } satisfies ExtensionRequest).catch(() => undefined);
   return result;
 }
 
 function BookmarkSettings({ onImported }: { onImported?: () => void }) {
   const { showToast, showUndoToast } = useToast();
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-  const [enrichMetadata, setEnrichMetadata] = useState(false);
   const [result, setResult] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const submit = async () => {
-    const urls = extractBookmarkUrls(value);
-    if (urls.length === 0) {
-      setError(t("书签 HTML 中没有找到可导入的链接"));
-      return;
-    }
-    setIsSubmitting(true);
-    setError(""); setResult("");
-    try {
-      const result = await importBookmarkUrls(urls, enrichMetadata);
-      if (result.added === 0) {
-        setError(tf("没有新增内容，{count} 个链接已存在。", { count: result.skipped }));
-        return;
-      }
-      setValue("");
+  const { value, setValue, enrichMetadata, setEnrichMetadata, error, isSubmitting, submit } = useBookmarkImport({
+    onImport: async (urls, enrich) => { setResult(""); return importBookmarkUrls(urls, enrich); },
+    onImported: (result) => {
       setResult(tf("导入完成：新增 {added} 个收藏项，跳过 {skipped} 个已有项。", { added: result.added, skipped: result.skipped }));
       showUndoToast(tf("已添加 {count} 个收藏项", { count: result.added }), {
         onUndo: async () => {
@@ -126,26 +75,13 @@ function BookmarkSettings({ onImported }: { onImported?: () => void }) {
         },
       });
       onImported?.();
-    } catch {
-      setError(t("导入未能写入本地收藏库，请重试。"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
 
   return <form className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
     <SettingsHeader title={t("导入书签")} description={t("导入浏览器保存的书签，描述与标签可在后台逐步补全。")} action={<Button type="submit" variant="primary" size="sm" isDisabled={isSubmitting}>{isSubmitting ? t("正在导入…") : t("开始导入")}</Button>} />
-    <section className="settings-form-section">
-      <SettingsSectionHeading title={t("书签内容")} description={t("书签会作为“网站”类型保存，已存在的规范化链接会自动跳过。")} />
-      <label className="settings-textarea-label"><span className="sr-only">{t("书签 HTML 内容")}</span><textarea value={value} onChange={(event) => setValue(event.target.value)} placeholder={t("粘贴浏览器导出的书签 HTML 内容")} autoFocus /></label>
-    </section>
-    <section className="settings-form-section">
-      <SettingsSectionHeading title={t("补全收藏项信息")} description={t("浏览器将一次确认本批次涉及的网站。")} />
-      <SettingsCard className="settings-option-card">
-        <Switch className="settings-option-switch" label={t("信息与封面")} description={t("只读取标题、描述、favicon和公开 OG 封面，完成后立即撤销全部访问权限。")} isSelected={enrichMetadata} onChange={setEnrichMetadata} />
-      </SettingsCard>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}{result ? <p className="form-success" role="status">{result}</p> : null}
-    </section>
+    <BookmarkImportFields variant="settings" value={value} onChange={setValue} enrichMetadata={enrichMetadata} onEnrichChange={setEnrichMetadata} />
+    {error ? <p className="form-error" role="alert">{error}</p> : null}{result ? <p className="form-success" role="status">{result}</p> : null}
   </form>;
 }
 
@@ -174,11 +110,7 @@ function TagsSettings() {
   const save = async (id: string) => { const result = await inspirationRepository.renameTag(id, name); setEditingId(undefined); showToast(t(result === "merged" ? "标签已合并" : "标签已保存"), { tone: "success" }); };
   const deleteTagItem = async (id: string) => { await inspirationRepository.deleteTag(id); showToast(t("标签已删除"), { tone: "success" }); };
   const closeSearch = () => { setIsSearchOpen(false); setQuery(""); };
-  const tagSearchAction = isSearchOpen ? <SearchField className="tag-search-field" aria-label={t("搜索标签")} value={query} onChange={setQuery} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeSearch(); } }}>
-    <RiSearchLine size={16} aria-hidden="true" />
-    <SearchInput autoFocus aria-label={t("搜索标签")} placeholder={t("搜索标签")} />
-    {query ? <Button size="icon" variant="ghost" aria-label={t("清除标签搜索")} onPress={() => setQuery("")}><RiCloseLine size={16} /></Button> : null}
-  </SearchField> : <Button size="sm" variant="secondary" onPress={() => setIsSearchOpen(true)}><RiSearchLine size={15} aria-hidden="true" />{t("搜索标签")}</Button>;
+  const tagSearchAction = isSearchOpen ? <CompactSearchField aria-label={t("搜索标签")} value={query} onChange={setQuery} placeholder={t("搜索标签")} clearLabel={t("清除标签搜索")} autoFocus onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeSearch(); } }} /> : <Button size="sm" variant="secondary" onPress={() => setIsSearchOpen(true)}><RiSearchLine size={15} aria-hidden="true" />{t("搜索标签")}</Button>;
   return <><div className="settings-form">
     <SettingsHeader title={t("标签")} description={t("统一管理收藏库中的标签，重命名为已有标签会自动合并。")} />
     <section className="settings-form-section">
@@ -199,36 +131,45 @@ function TagsSettings() {
 function AiSettings() {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AiSettings>(defaultAiSettings);
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [apiKey, setApiKey] = useState("");
+  const [savedSettings, setSavedSettings] = useState<AiSettingsView>();
+  const [draftKey, setDraftKey] = useState<(Pick<AiSettings, "provider" | "endpoint"> & { value: string })>();
+  const apiKey = draftKey && canReuseAiKey(draftKey, settings) ? draftKey.value : "";
   const [summary, setSummary] = useState(emptySummary);
   const [state, setState] = useState<"ready" | "saving" | "saved">("ready");
   const [connectionState, setConnectionState] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [connectionMessage, setConnectionMessage] = useState("");
   const [error, setError] = useState("");
+  const [keyError, setKeyError] = useState(false);
+  const hasApiKey = savedSettings?.hasApiKey && canReuseAiKey(savedSettings, settings);
 
   useEffect(() => {
-    void Promise.all([
-      sendExtensionMessage<AiSettingsView>({ type: "ai:config:get" } satisfies ExtensionRequest),
-      sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest),
-    ]).then(([view, taskSummary]) => { setSettings(view); setHasApiKey(view.hasApiKey); setSummary(taskSummary); }).catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
+    void sendExtensionMessage<AiSettingsView>({ type: "ai:config:get" })
+      .then((view) => { setSettings(view); setSavedSettings(view); })
+      .catch((reason) => setError(reason instanceof Error ? t(reason.message) : t("无法读取 AI 设置")));
+    void sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" })
+      .then(setSummary).catch(() => undefined);
   }, []);
 
   const save = async () => {
     setState("saving");
     setError("");
+    setKeyError(false);
     try {
+      assertSecureAiEndpoint(settings.endpoint);
+      if (!settings.model.trim()) throw new Error("请填写模型 ID。");
       if (settings.enabled) {
-        const granted = await browser.permissions.request({ origins: [endpointPermissionPattern(settings.endpoint)] });
-        if (!granted) throw new Error(t("需要允许访问当前 Provider 域名，才能发送 AI 请求。"));
-        if (!apiKey.trim() && !hasApiKey) throw new Error(t("请填写 API Key。"));
+        if (!apiKey.trim() && !hasApiKey) throw new Error("请填写 API Key。");
       }
-      const view = await sendExtensionMessage<AiSettingsView>({ type: "ai:config:save", settings: { ...settings, apiKey: apiKey.trim() || undefined } } satisfies ExtensionRequest);
-      setSettings(view); setHasApiKey(view.hasApiKey); setApiKey(""); setState("saved");
+      const view = await withRequestedHostPermissions(settings.enabled ? [endpointPermissionPattern(settings.endpoint)] : [], (granted) => {
+        if (settings.enabled && !granted) throw new Error("需要允许访问当前 Provider 域名，才能发送 AI 请求。");
+        return sendExtensionMessage<AiSettingsView>({ type: "ai:config:save", settings: { ...settings, apiKey: apiKey.trim() || undefined } });
+      });
+      setSettings(view); setSavedSettings(view); setDraftKey(undefined); setState("saved");
       showToast(t("AI 设置已保存"), { tone: "success" });
       setSummary(await sendExtensionMessage<AiTaskSummary>({ type: "ai:tasks:summary" } satisfies ExtensionRequest));
     } catch (reason) {
-      setError(reason instanceof Error ? t(reason.message) : t("保存 AI 设置失败"));
+      if (reason instanceof Error && reason.message === "请填写 API Key。") setKeyError(true);
+      else setError(reason instanceof Error ? t(reason.message) : t("保存 AI 设置失败"));
       setState("ready");
     }
   };
@@ -239,19 +180,26 @@ function AiSettings() {
   const testConnection = async () => {
     setConnectionState("testing"); setConnectionMessage("");
     try {
-      const granted = await browser.permissions.request({ origins: [endpointPermissionPattern(settings.endpoint)] });
-      if (!granted) throw new Error(t("需要允许访问当前 Provider 域名，才能测试连接。"));
-      await sendExtensionMessage({ type: "ai:config:test", settings: { ...settings, apiKey: apiKey.trim() || undefined } } satisfies ExtensionRequest);
+      await withRequestedHostPermissions([endpointPermissionPattern(settings.endpoint)], (granted) => {
+        if (!granted) throw new Error("需要允许访问当前 Provider 域名，才能测试连接。");
+        return sendExtensionMessage({ type: "ai:config:test", settings: { ...settings, apiKey: apiKey.trim() || undefined } });
+      });
       setConnectionState("success"); setConnectionMessage(t("连接成功，API Key、Endpoint 和 Model 可用。"));
     } catch (reason) { setConnectionState("error"); setConnectionMessage(reason instanceof Error ? t(reason.message) : t("连接测试失败")); }
   };
   const setProvider = (provider: AiSettings["provider"]) => {
-    if (provider !== settings.provider) { setHasApiKey(false); setApiKey(""); }
-    if (provider === "custom") { setSettings((current) => ({ ...current, provider })); return; }
-    const preset = aiProviderPresets[provider];
-    setSettings((current) => ({ ...current, provider, endpoint: preset.endpoint, model: preset.model }));
+    setConnectionState("idle"); setConnectionMessage("");
+    const preset = provider === "custom" ? undefined : aiProviderPresets[provider];
+    const next = { provider, endpoint: preset?.endpoint ?? settings.endpoint, model: preset?.model ?? settings.model };
+    if (!canReuseAiKey(settings, next)) { setDraftKey(undefined); setKeyError(false); }
+    setSettings((current) => ({ ...current, ...next }));
   };
   const selectedStorageDescription = t(apiKeyStorageOptions.find((option) => option.value === settings.apiKeyStorage)?.description ?? "退出浏览器后需重新填写。");
+
+  if (!savedSettings) return <div className="settings-form">
+    <SettingsHeader title={t("AI 助手")} />
+    {error ? <p className="form-error" role="alert">{error}</p> : <p role="status">{t("正在读取…")}</p>}
+  </div>;
 
   return <div className="settings-form">
     <SettingsHeader title={t("AI 助手")} description={t("可选的 OpenAI-compatible Provider，不会影响本地添加、编辑与搜索。")} action={<Button variant="primary" size="sm" isDisabled={state === "saving"} onPress={() => void save()}>{state === "saving" ? t("保存中…") : t("保存设置")}</Button>} />
@@ -262,10 +210,18 @@ function AiSettings() {
     <section className="settings-form-section">
       <SettingsSectionHeading title={t("模型与连接")} description={t("选择服务并配置请求地址、模型和 API Key。")} />
       <SettingsCard>
-        <SettingsRow title="Provider" description={settings.provider === "deepseek" ? t("DeepSeek 官方 API，默认模型。") : t("预设会同步填入 Endpoint 和默认模型。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
-        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => setSettings((current) => ({ ...current, endpoint }))} placeholder="https://api.openai.com/v1" />} />
-        <SettingsRow title="Model" control={<Field label="Model" value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} placeholder="gpt-4.1-mini" />} />
-        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={setApiKey} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} />} />
+        <SettingsRow title="Provider" description={t("选择服务会填入默认地址与模型；地址需与 API Key 所属地域一致。")} control={<SelectMenu<AiSettings["provider"]> label="Provider" value={settings.provider} options={aiProviderOptions.map((option) => ({ ...option, label: t(option.label) }))} onChange={setProvider} className="ai-provider-select" />} />
+        <SettingsRow title="Endpoint" control={<Field label="Endpoint" value={settings.endpoint} onChange={(endpoint) => {
+          if (!canReuseAiKey(settings, { ...settings, endpoint })) setDraftKey(undefined);
+          setSettings((current) => ({ ...current, endpoint }));
+          setKeyError(false);
+          setConnectionState("idle");
+          setConnectionMessage("");
+        }} placeholder="https://api.openai.com/v1" />} />
+        <SettingsRow title="Model" control={<AiModelSelect key={settings.provider} settings={settings} apiKey={apiKey} provider={settings.provider} value={settings.model} onChange={(model) => setSettings((current) => ({ ...current, model }))} />} />
+        <SettingsRow title="API Key" description={hasApiKey ? t("已保存；留空保持不变。") : t("填写你自己的 API Key。")} control={<Field label="API Key" type="password" value={apiKey} onChange={(key) => { setDraftKey({ provider: settings.provider, endpoint: settings.endpoint, value: key }); setKeyError(false); }} placeholder={hasApiKey ? t("已保存；留空保持不变") : t("填写你自己的 API Key")} isInvalid={keyError && settings.enabled} aria-describedby={keyError && settings.enabled ? "ai-key-save-error" : undefined} />}>
+          {keyError && settings.enabled ? <p id="ai-key-save-error" className="form-error" role="alert">{t("请填写 API Key。")}</p> : null}
+        </SettingsRow>
         <SettingsRow title={t("测试连接")} description={t("发送最小请求，不保存当前表单或 API Key。")} control={<Button variant="secondary" size="sm" isDisabled={connectionState === "testing"} onPress={() => void testConnection()}><RiRefreshLine size={15} />{connectionState === "testing" ? t("正在测试…") : t("测试连接")}</Button>} >{connectionMessage ? <span className={connectionState === "success" ? "is-success" : "is-error"} role="status">{connectionMessage}</span> : null}</SettingsRow>
       </SettingsCard>
     </section>

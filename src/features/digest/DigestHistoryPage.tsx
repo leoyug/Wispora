@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { RiArrowLeftLine, RiCloseLine, RiSearchLine } from "@remixicon/react";
+import { RiArrowLeftLine } from "@remixicon/react";
 import { Button } from "@/src/components/ui/Button";
-import { SearchField, SearchInput } from "@/src/components/ui/SearchField";
+import { CompactSearchField } from "@/src/components/ui/SearchField";
 import { DigestEditionCard } from "@/src/components/inspiration/DigestEditionCard";
 import { digestRepository } from "@/src/db/digestRepository";
 import { digestRangeLabel, type DigestKind } from "@/src/domain/digest";
-import { SettingsHeader } from "@/src/features/settings/SettingsPrimitives";
+import { SettingsHeader } from "@/src/components/settings/SettingsPrimitives";
 import { t, tf } from "@/src/i18n/ui";
 
 const historyState = new Map<DigestKind, { search: string; scroll: number; selected?: string }>();
@@ -31,7 +31,7 @@ export function DigestHistoryPage({ kind }: { kind: DigestKind }) {
       <SettingsHeader title={kind === "weekly" ? t("一周简报") : t("今日总结")} description={t("把收藏串成记录，再读一次，发现新的联系。")} />
     </div>
     <div className="digest-history-toolbar"><span>{digests ? tf("共 {count} 期", { count: digests.length }) : t("正在读取…")}</span>
-      <SearchField className="tag-search-field" aria-label={t("搜索往期简报")} value={search} onChange={setSearch}><RiSearchLine size={16} aria-hidden="true" /><SearchInput placeholder={t("搜索标题或日期…")} />{search ? <Button variant="ghost" size="icon" aria-label={t("清空搜索")} onPress={() => setSearch("")}><RiCloseLine size={15} aria-hidden="true" /></Button> : null}</SearchField>
+      <CompactSearchField aria-label={t("搜索往期简报")} value={search} onChange={setSearch} placeholder={t("搜索标题或日期…")} />
     </div>
     {error ? <div role="alert" className="digest-error-row"><p>{error}</p><Button onPress={refresh}>{t("重试")}</Button></div> : null}
     <div className="digest-edition-grid">{filtered?.map((digest) => <div key={digest.id} id={`edition-${digest.id}`}><DigestEditionCard digest={digest} href={`#digest/${digest.id}?from=${kind}`} onOpen={() => historyState.set(kind, { search, scroll: window.scrollY, selected: digest.id })} /></div>)}</div>

@@ -1,5 +1,6 @@
+import { resolveXArticleMetadata } from "@/src/capture/xArticleMetadata";
 import Dexie, { type Transaction } from "dexie";
-import { createFallbackTitle, formatUrlIdentity, normalizeUrl } from "@/src/capture/normalizeUrl";
+import { createFallbackTitle, formatUrlIdentity, isSprrrintHomepage, normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { PageCapture } from "@/src/capture/types";
 import type { AiAnalysisInput, AiTaskSummary, PageAnalysis } from "@/src/ai/types";
 import type {
@@ -13,11 +14,10 @@ import type {
   Tag,
   UpdateSavedItemInput,
 } from "@/src/domain/inspiration";
-import { resolveDescription } from "@/src/domain/inspiration";
+import { readLaterViewId, resolveDescription } from "@/src/domain/inspiration";
 import { db, type WisporaDatabase } from "./database";
 
 const kindLabels = { website: "网站", article: "文章", follow: "关注源" } as const;
-const systemViewId = "read-later";
 
 function createId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -69,11 +69,11 @@ export class InspirationRepository {
   constructor(private readonly database: WisporaDatabase = db) {}
 
   async initialize() {
-    const existing = await this.database.savedViews.get(systemViewId);
+    const existing = await this.database.savedViews.get(readLaterViewId);
     if (existing) return;
     const now = Date.now();
     await this.database.savedViews.put({
-      id: systemViewId,
+      id: readLaterViewId,
       name: "稍后阅读",
       isSystem: true,
       scope: "article",
@@ -94,17 +94,20 @@ export class InspirationRepository {
     const tagsById = new Map(tags.map((tag) => [tag.id, tag.name]));
     const snapshotsByItem = new Map(snapshots.map((snapshot) => [snapshot.itemId, snapshot]));
     const aiTasksByItem = new Map(tasks.map((task) => [task.itemId, task]));
-    return items.map((item) => ({
-      ...item,
-      title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(item.canonicalUrl) : item.title,
-      url: item.originalUrl,
-      sourceLabel: formatUrlIdentity(item.canonicalUrl),
-      tags: item.tagIds.flatMap((id) => tagsById.get(id) ?? []),
-      savedAt: formatSavedAt(item.createdAt),
-      snapshotText: snapshotsByItem.get(item.id)?.cleanText ?? "",
-      aiError: aiTasksByItem.get(item.id)?.lastError,
-      aiAttempts: aiTasksByItem.get(item.id)?.attempts,
-    }));
+    return items.map((item) => {
+      const displayUrl = normalizeUrl(item.canonicalUrl);
+      return {
+        ...item,
+        title: !item.title.trim() || item.title === item.siteHost ? createFallbackTitle(displayUrl) : item.title,
+        url: item.originalUrl,
+        sourceLabel: formatUrlIdentity(displayUrl),
+        tags: item.tagIds.flatMap((id) => tagsById.get(id) ?? []),
+        savedAt: formatSavedAt(item.createdAt),
+        snapshotText: snapshotsByItem.get(item.id)?.cleanText ?? "",
+        aiError: aiTasksByItem.get(item.id)?.lastError,
+        aiAttempts: aiTasksByItem.get(item.id)?.attempts,
+      };
+    });
   }
 
   async getSnapshot(itemId: string) {
@@ -116,9 +119,10 @@ export class InspirationRepository {
   }
 
   async updateSavedItem(itemId: string, input: UpdateSavedItemInput) {
-    const title = input.title.trim();
-    if (!title) throw new Error("标题不能为空");
-    const normalizedNames = [...new Set(input.tags.map(normalizeTagName).filter(Boolean))];
+    const title = input.title?.trim();
+    if (title === "") throw new Error("标题不能为空");
+    const description = input.description?.trim();
+    const normalizedNames = [...new Set(input.tags?.map(normalizeTagName).filter(Boolean))];
     const now = Date.now();
     return this.database.transaction("rw", this.database.savedItems, this.database.tags, this.database.tasks, async () => {
       const item = await this.database.savedItems.get(itemId);
@@ -126,8 +130,8 @@ export class InspirationRepository {
       const nextKind = input.kind ?? item.kind;
       const kindChanged = nextKind !== item.kind;
       if (kindChanged) {
-        const collision = await this.database.savedItems.where("[kind+canonicalUrl]").equals([nextKind, item.canonicalUrl]).first();
-        if (collision && collision.id !== itemId) throw new Error(`该链接已经有“${kindLabels[nextKind]}”类型的收藏项，无法再次改成此类型。`);
+        const collision = await this.findSavedItem(nextKind, normalizeUrl(item.canonicalUrl));
+        if (collision) throw new Error("该链接已收藏为所选类型，请选择其他类型。");
       }
       const existingTags = normalizedNames.length
         ? await this.database.tags.where("normalizedName").anyOf(normalizedNames).toArray()
@@ -138,15 +142,18 @@ export class InspirationRepository {
       }));
       if (createdTags.length) await this.database.tags.bulkAdd(createdTags);
       createdTags.forEach((tag) => existingByName.set(tag.normalizedName, tag));
-      const requestedTagIds = normalizedNames.flatMap((name) => existingByName.get(name)?.id ?? []);
+      const requestedTagIds = input.tags === undefined
+        ? item.tagIds
+        : normalizedNames.flatMap((name) => existingByName.get(name)?.id ?? []);
       const tagsChanged = item.tagIds.length !== requestedTagIds.length || item.tagIds.some((tagId) => !requestedTagIds.includes(tagId));
       const nextTagIds = kindChanged && !item.tagsEditedAt && !tagsChanged ? [] : requestedTagIds;
       const affectedIds = new Set([...item.tagIds, ...nextTagIds]);
       await this.database.savedItems.update(itemId, {
         kind: nextKind,
-        title,
-        description: input.description.trim(),
-        descriptionSource: input.descriptionEdited === false ? item.descriptionSource : input.description.trim() ? "user" : undefined,
+        ...(kindChanged ? { isRead: undefined } : {}),
+        title: title ?? item.title,
+        description: description ?? item.description,
+        descriptionSource: description === undefined || input.descriptionEdited === false ? item.descriptionSource : description ? "user" : undefined,
         tagIds: nextTagIds,
         tagsEditedAt: tagsChanged ? now : item.tagsEditedAt,
         cover: input.coverBlob
@@ -298,7 +305,7 @@ export class InspirationRepository {
     const canonicalUrl = normalizeUrl(input.url);
     try {
       const result = await this.database.transaction("rw", this.database.savedItems, this.database.tasks, async () => {
-        const existing = await this.database.savedItems.where("[kind+canonicalUrl]").equals([input.kind, canonicalUrl]).first();
+        const existing = await this.findSavedItem(input.kind, canonicalUrl);
         if (existing) return { created: false, item: existing };
 
         const parsed = new URL(canonicalUrl);
@@ -360,7 +367,7 @@ export class InspirationRepository {
       return { ...result, item: (await this.database.savedItems.get(result.item.id)) ?? result.item };
     } catch (error) {
       if (!(error instanceof Dexie.ConstraintError)) throw error;
-      const existing = await this.database.savedItems.where("[kind+canonicalUrl]").equals([input.kind, canonicalUrl]).first();
+      const existing = await this.findSavedItem(input.kind, canonicalUrl);
       if (!existing) throw error;
       return { created: false, item: existing };
     }
@@ -370,8 +377,18 @@ export class InspirationRepository {
     return this.database.savedItems.get(id);
   }
 
-  async findSavedItem(kind: SavedItem["kind"], url: string) {
-    return this.database.savedItems.where("[kind+canonicalUrl]").equals([kind, normalizeUrl(url)]).first();
+  private async findSavedItem(kind: SavedItem["kind"], canonicalUrl: string) {
+    const exact = await this.database.savedItems.where("[kind+canonicalUrl]").equals([kind, canonicalUrl]).first();
+    if (exact) return exact;
+
+    const url = new URL(canonicalUrl);
+    const path = `${url.origin}${url.pathname}`;
+    // Older keys can retain trailing slashes or the Sprrrint homepage limit.
+    const prefixes = [`${path}/`];
+    if (isSprrrintHomepage(url)) prefixes.push(`${path}?`);
+    return this.database.savedItems.where("canonicalUrl").startsWithAnyOf(prefixes)
+      .and((item) => item.kind === kind && normalizeUrl(item.canonicalUrl) === canonicalUrl)
+      .first();
   }
 
   async markCaptureStarted(itemId: string, captureMethod: PersistentTask["captureMethod"] = "active-tab") {
@@ -398,6 +415,16 @@ export class InspirationRepository {
     });
   }
 
+  async refreshArticleCover(id: string, canonicalUrl: string, image: string) {
+    const updated = await this.database.savedItems.where("id").equals(id).and((item) =>
+      item.kind === "article" && item.canonicalUrl === canonicalUrl && !item.cover.isUserSelected && item.cover.image !== image,
+    ).modify((item) => {
+      item.cover = { ...item.cover, image, blob: undefined };
+      item.updatedAt = Date.now();
+    });
+    return updated > 0;
+  }
+
   async completeCapture(itemId: string, capture: PageCapture, captureMethod: PersistentTask["captureMethod"] = "active-tab") {
     return this.database.transaction(
       "rw",
@@ -407,20 +434,27 @@ export class InspirationRepository {
       async () => {
         const sourceItem = await this.database.savedItems.get(itemId);
         if (!sourceItem) throw new Error("收藏项不存在");
-        const candidateCanonical = normalizeUrl(capture.canonicalUrl || capture.url);
-        const duplicate = await this.database.savedItems
-          .where("[kind+canonicalUrl]")
-          .equals([sourceItem.kind, candidateCanonical])
-          .and((candidate) => candidate.id !== itemId)
-          .first();
+        const candidateCanonical = normalizeUrl(capture.url);
+        const existing = await this.findSavedItem(sourceItem.kind, candidateCanonical);
+        const duplicate = existing?.id !== itemId && normalizeUrl(sourceItem.canonicalUrl) !== candidateCanonical
+          ? existing
+          : undefined;
+        const canonicalUrl = existing && existing.id !== itemId && !duplicate
+          ? sourceItem.canonicalUrl
+          : candidateCanonical;
         const targetItem = duplicate ?? sourceItem;
+        const { title, description } = targetItem.kind === "article"
+          ? resolveXArticleMetadata(new URL(capture.url), capture.title, capture.documentTitle, capture.description)
+          : capture;
         const now = Date.now();
         const snapshotId = targetItem.snapshotId ?? createId("snapshot");
-        const snapshot: Snapshot = {
+        const incomingSnapshot: Snapshot = {
           id: snapshotId,
           itemId: targetItem.id,
           capturedAt: now,
-          title: capture.title,
+          sourceUrl: capture.url,
+          baseUrl: capture.baseUrl,
+          title,
           byline: capture.byline,
           excerpt: capture.excerpt,
           cleanText: capture.cleanText,
@@ -429,24 +463,32 @@ export class InspirationRepository {
           completeness: capture.completeness,
           error: capture.completeness === "failed" ? "页面中没有可保存的正文内容" : undefined,
         };
-        const nextDescription = resolveDescription(targetItem, { description: capture.description, source: "page" });
-        // Only a page-authored social preview is suitable for a full-width cover.
-        // Site logos and favicons remain identity metadata; stretching either into
-        // the cover frame produces a misleading, low-quality result.
-        const automaticImage = capture.ogImage;
+        const previousSnapshot = targetItem.snapshotId
+          ? await this.database.snapshots.get(targetItem.snapshotId)
+          : undefined;
+        const snapshot = previousSnapshot
+          && ((previousSnapshot.cleanHtml.trim() && !incomingSnapshot.cleanHtml.trim())
+            || (previousSnapshot.cleanText.trim() && !incomingSnapshot.cleanText.trim())
+            || (previousSnapshot.completeness === "complete" && incomingSnapshot.completeness !== "complete"))
+          ? previousSnapshot
+          : incomingSnapshot;
+        const nextDescription = resolveDescription(targetItem, { description, source: "page" });
+        const automaticImage = targetItem.kind === "article"
+          ? capture.articleCover ?? capture.ogImage
+          : capture.ogImage;
         const nextCover = targetItem.cover.isUserSelected
           ? targetItem.cover
           : {
               ...targetItem.cover,
-              image: automaticImage,
+              image: automaticImage ?? targetItem.cover.image,
               blob: undefined,
-              label: capture.title || targetItem.cover.label,
+              label: title || targetItem.cover.label,
             };
         await this.database.snapshots.put(snapshot);
         await this.database.savedItems.update(targetItem.id, {
-          canonicalUrl: candidateCanonical,
+          canonicalUrl,
           siteHost: new URL(candidateCanonical).hostname.replace(/^www\./, ""),
-          title: capture.title.trim() || targetItem.title,
+          title: title.trim() || targetItem.title,
           description: nextDescription.description,
           descriptionSource: nextDescription.descriptionSource,
           cover: nextCover,
@@ -455,7 +497,7 @@ export class InspirationRepository {
             ? undefined
             : targetItem.siteIconAutoBackground,
           snapshotId,
-          snapshotStatus: capture.completeness,
+          snapshotStatus: snapshot.completeness,
           updatedAt: now,
         });
         if (duplicate) {
@@ -466,16 +508,16 @@ export class InspirationRepository {
         const targetTask = await this.database.tasks.where("itemId").equals(targetItem.id).and((task) => task.type === "capture").first();
         if (targetTask) {
           await this.database.tasks.update(targetTask.id, {
-            status: capture.completeness === "failed" ? "failed" : "complete",
-            lastError: capture.completeness === "failed" ? snapshot.error : undefined,
+            status: snapshot.completeness === "failed" ? "failed" : "complete",
+            lastError: snapshot.error,
             updatedAt: now,
           });
         } else {
           await this.database.tasks.add({
             id: createId("task"), itemId: targetItem.id, type: "capture",
-            status: capture.completeness === "failed" ? "failed" : "complete",
+            status: snapshot.completeness === "failed" ? "failed" : "complete",
             attempts: 1, captureMethod: "active-tab", createdAt: now, updatedAt: now,
-            lastError: capture.completeness === "failed" ? snapshot.error : undefined,
+            lastError: snapshot.error,
           });
         }
         return { itemId: targetItem.id, mergedDuplicate: Boolean(duplicate) };
@@ -688,6 +730,13 @@ export class InspirationRepository {
   async toggleFavorite(id: string) {
     await this.database.savedItems.where("id").equals(id).modify((item) => {
       item.isFavorite = !item.isFavorite;
+      item.updatedAt = Date.now();
+    });
+  }
+
+  async toggleArticleRead(id: string) {
+    await this.database.savedItems.where("id").equals(id).and((item) => item.kind === "article").modify((item) => {
+      item.isRead = item.isRead !== true;
       item.updatedAt = Date.now();
     });
   }

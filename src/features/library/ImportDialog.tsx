@@ -1,8 +1,8 @@
-import { RiArticleLine, RiCloseLine, RiGlobalLine, RiLinksLine, RiUserFollowLine } from "@remixicon/react";
+import { RiArticleLine, RiGlobalLine, RiLinksLine, RiUserFollowLine } from "@remixicon/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
-import { Dialog, DialogTitle, Modal, ModalOverlay } from "@/src/components/ui/Modal";
+import { Dialog, FormDialogHeader, FormDialogFooter, Modal, ModalOverlay } from "@/src/components/ui/Modal";
 import { Switch } from "@/src/components/ui/Switch";
 import type { SavedItemKind } from "@/src/domain/inspiration";
 import { t, tf } from "@/src/i18n/ui";
@@ -105,11 +105,11 @@ export function ImportDialog({ kind, onClose, onAdd, onBulkAdd }: ImportDialogPr
   };
 
   return (
-    <ModalOverlay className="detail-overlay" isOpen isDismissable onOpenChange={(open) => !open && onClose()}>
+    <ModalOverlay className="detail-overlay" isOpen isDismissable={!isSubmitting} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <Modal className="form-modal add-item-modal" style={modalHeight ? { height: modalHeight } : undefined}>
         <Dialog ref={dialogRef} className="form-dialog add-item-dialog">
           {({ close }) => <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-            <header className="form-dialog-header"><div className="form-dialog-icon"><Icon size={20} /></div><div><DialogTitle>{t("添加")} {t(meta.label)}</DialogTitle><p>{t(meta.help)}</p></div><Button type="button" size="icon" variant="ghost" aria-label={t("关闭")} onPress={close}><RiCloseLine size={19} /></Button></header>
+            <FormDialogHeader icon={<Icon size={20} />} title={<>{t("添加")} {t(meta.label)}</>} description={t(meta.help)} onClose={close} closeLabel={t("关闭")} isDisabled={isSubmitting} />
             <div className={`form-dialog-body ${mode === "multiple" ? "is-multiple" : ""}`}>
               <div className="import-mode" aria-label={t("添加方式")}>
                 <button type="button" aria-pressed={mode === "single"} onClick={() => { setMode("single"); setError(""); }}><RiGlobalLine size={15} />{t("单个")}</button>
@@ -119,7 +119,7 @@ export function ImportDialog({ kind, onClose, onAdd, onBulkAdd }: ImportDialogPr
               <Switch isSelected={enrichMetadata} onChange={setEnrichMetadata} label={t("补全网站信息")} description={t("添加时临时读取相关网站的标题、描述、favicon 和公开封面；完成后立即撤销访问权限。")} />
               {error ? <p className="form-error" role="alert">{error}</p> : null}
             </div>
-            <footer className="form-dialog-footer"><Button type="button" variant="ghost" isDisabled={isSubmitting} onPress={close}>{t("取消")}</Button><Button type="submit" variant="primary" isDisabled={isSubmitting}>{isSubmitting ? t("正在添加…") : t("添加到收藏库")}</Button></footer>
+            <FormDialogFooter onCancel={close} isPending={isSubmitting} submitLabel={isSubmitting ? t("正在添加…") : t("添加到收藏库")} />
           </form>}
         </Dialog>
       </Modal>

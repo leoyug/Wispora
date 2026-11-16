@@ -28,8 +28,13 @@ const outputLanguageInstructions: Record<AppLanguage, string> = {
   "en-US": "description must use concise, natural English and stay within 120 words. Terms such as AI and skill, plus product, brand, and technology names, may retain their original spelling. tags must use English.",
 };
 
+const articleSummaryInstructions: Record<AppLanguage, string> = {
+  "zh-CN": "文章描述用一句完整的话概括正文的核心观点，尽量控制在 50 个汉字以内。仅依据提供的概要或正文；如果两者均缺失，description 返回空字符串。",
+  "en-US": "Summarize the article’s main point in one complete sentence of about 25 words or fewer. Use only the supplied summary or article text. If neither is available, return an empty description.",
+};
+
 export class OpenAiCompatibleProvider implements AiProvider {
-  constructor(private readonly options: { endpoint: string; model: string; apiKey: string; outputLanguage?: AppLanguage; timeoutMs?: number; extraBody?: Record<string, unknown> }) {}
+  constructor(private readonly options: { endpoint: string; model: string; apiKey: string; outputLanguage?: AppLanguage; timeoutMs?: number; maxTokens?: number; testMaxTokens?: number; omitTemperature?: boolean; tokenParameter?: "max_tokens" | "max_completion_tokens"; extraBody?: Record<string, unknown> }) {}
 
   async testConnection(): Promise<void> {
     const controller = new AbortController();
@@ -42,8 +47,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
         redirect: "error",
         body: JSON.stringify({
           model: this.options.model,
-          temperature: 0,
-          max_tokens: 1,
+          ...(this.options.omitTemperature ? {} : { temperature: 0 }),
+          [this.options.tokenParameter ?? "max_tokens"]: this.options.testMaxTokens ?? 1,
           ...this.options.extraBody,
           messages: [{ role: "user", content: "Reply OK." }],
         }),
@@ -64,6 +69,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
   async analyze(input: AiAnalysisInput): Promise<PageAnalysis> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 30_000);
+    const language = this.options.outputLanguage ?? "zh-CN";
+    const articleInstructions = input.kind === "article" ? ` ${articleSummaryInstructions[language]}` : "";
     try {
       const response = await fetch(completionUrl(this.options.endpoint), {
         method: "POST",
@@ -72,14 +79,14 @@ export class OpenAiCompatibleProvider implements AiProvider {
         redirect: "error",
         body: JSON.stringify({
           model: this.options.model,
-          temperature: 0.2,
+          ...(this.options.omitTemperature ? {} : { temperature: 0.2 }),
           response_format: { type: "json_object" },
-          max_tokens: 600,
+          [this.options.tokenParameter ?? "max_tokens"]: this.options.maxTokens ?? 600,
           ...this.options.extraBody,
           messages: [
             {
               role: "system",
-              content: `你是个人灵感库的整理助手。无论网页原文使用什么语言，${outputLanguageInstructions[this.options.outputLanguage ?? "zh-CN"]} 已有标签和别名可用于识别概念；仅在其语言符合目标语言或属于专有名称时复用原拼写，避免近义词和重复概念。只返回 JSON：{\"description\":\"识别性描述\",\"tags\":[\"3到5个简洁标签\"]}，不要返回 Markdown。`,
+              content: `你是个人灵感库的整理助手。无论网页原文使用什么语言，${outputLanguageInstructions[language]}${articleInstructions} 已有标签和别名可用于识别概念；仅在其语言符合目标语言或属于专有名称时复用原拼写，避免近义词和重复概念。只返回 JSON：{\"description\":\"识别性描述\",\"tags\":[\"3到5个简洁标签\"]}，不要返回 Markdown。`,
             },
             {
               role: "user",

@@ -1,6 +1,7 @@
 import { RiDeleteBinLine, RiEditLine, RiMore2Line } from "@remixicon/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { Menu, MenuContent, MenuItem } from "@/src/components/ui/Menu";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/Tooltip";
 import type { LibrarySavedView } from "@/src/domain/inspiration";
@@ -23,16 +24,13 @@ export function SavedViewNavItem({ view, icon, isActive, onPress, onRename, onDe
   const displayName = view.isSystem ? t(view.name) : view.name;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [isDeleteArmed, setIsDeleteArmed] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [draft, setDraft] = useState(view.name);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const labelTextRef = useRef<HTMLSpanElement>(null);
   const [labelOverflow, setLabelOverflow] = useState(0);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number }>();
 
   useLayoutEffect(() => {
     const label = labelRef.current;
@@ -55,46 +53,6 @@ export function SavedViewNavItem({ view, icon, isActive, onPress, onRename, onDe
   useEffect(() => {
     if (isEditing) inputRef.current?.select();
   }, [isEditing]);
-
-  useEffect(() => {
-    if (!isMenuOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-        setIsDeleteArmed(false);
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [isMenuOpen]);
-
-  useLayoutEffect(() => {
-    if (!isMenuOpen) {
-      setMenuPosition(undefined);
-      return;
-    }
-    const positionMenu = () => {
-      const trigger = moreButtonRef.current;
-      if (!trigger) return;
-      const triggerRect = trigger.getBoundingClientRect();
-      const menuWidth = 174;
-      const menuHeight = menuRef.current?.offsetHeight ?? 78;
-      const viewportPadding = 8;
-      const frozenBottom = document.querySelector<HTMLElement>(".sidebar-bottom")?.getBoundingClientRect().top ?? window.innerHeight;
-      const bottomLimit = Math.min(window.innerHeight - viewportPadding, frozenBottom - viewportPadding);
-      const left = Math.min(Math.max(viewportPadding, triggerRect.right - menuWidth), window.innerWidth - menuWidth - viewportPadding);
-      const below = triggerRect.bottom + 8;
-      const top = below + menuHeight <= bottomLimit ? below : Math.max(viewportPadding, triggerRect.top - menuHeight - 8);
-      setMenuPosition({ left, top });
-    };
-    positionMenu();
-    window.addEventListener("resize", positionMenu);
-    window.addEventListener("scroll", positionMenu, true);
-    return () => {
-      window.removeEventListener("resize", positionMenu);
-      window.removeEventListener("scroll", positionMenu, true);
-    };
-  }, [isMenuOpen]);
 
   const finishEditing = () => {
     const name = draft.trim();
@@ -138,16 +96,14 @@ export function SavedViewNavItem({ view, icon, isActive, onPress, onRename, onDe
 
       {!view.isSystem && !isEditing ? (
         <>
-          <button ref={moreButtonRef} type="button" className="saved-view-more" aria-label={tf("管理快捷视图“{name}”", { name: view.name })} aria-expanded={isMenuOpen} onClick={() => { setIsMenuOpen((open) => !open); setIsDeleteArmed(false); }}>
-            <RiMore2Line size={16} aria-hidden="true" />
-          </button>
-          {isMenuOpen && menuPosition ? createPortal(
-            <div ref={menuRef} className="popover-surface saved-view-menu" role="menu" aria-label={tf("管理{name}", { name: view.name })} style={menuPosition}>
-              <button type="button" role="menuitem" onClick={() => { setIsMenuOpen(false); setIsEditing(true); }}><RiEditLine size={15} />{t("编辑名称")}</button>
-              <button type="button" role="menuitem" className="is-danger" onClick={() => { if (isDeleteArmed) onDelete(); else setIsDeleteArmed(true); }}><RiDeleteBinLine size={15} />{isDeleteArmed ? t("确认删除") : t("删除视图")}</button>
-            </div>,
-            document.body,
-          ) : null}
+          <Menu isOpen={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <Button variant="ghost" size="icon" className="saved-view-more" aria-label={tf("管理快捷视图“{name}”", { name: view.name })}><RiMore2Line size={16} aria-hidden="true" /></Button>
+            <MenuContent placement="bottom end" aria-label={tf("管理{name}", { name: view.name })}>
+              <MenuItem id="rename" textValue={t("编辑名称")} onAction={() => setIsEditing(true)}><RiEditLine size={15} /><span>{t("编辑名称")}</span></MenuItem>
+              <MenuItem id="delete" textValue={t("删除视图")} danger onAction={() => setIsDeleteOpen(true)}><RiDeleteBinLine size={15} /><span>{t("删除视图")}</span></MenuItem>
+            </MenuContent>
+          </Menu>
+          <ConfirmDialog isOpen={isDeleteOpen} title={t("删除视图")} description={tf("确定删除快捷视图“{name}”？收藏项会保留。", { name: view.name })} onClose={() => setIsDeleteOpen(false)} onConfirm={onDelete} />
         </>
       ) : null}
     </div>

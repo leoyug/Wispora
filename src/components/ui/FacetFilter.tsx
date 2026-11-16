@@ -1,10 +1,11 @@
-import { RiArrowDownSLine, RiCloseLine, RiSearchLine } from "@remixicon/react";
+import { RiArrowDownSLine } from "@remixicon/react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Checkbox, Dialog, DialogTrigger, FieldInputContext, Input, Popover, SearchField } from "react-aria-components";
+import { Checkbox, Dialog, DialogTrigger, FieldInputContext, Popover } from "react-aria-components";
 import { cn } from "@/src/lib/cn";
 import { Button } from "./Button";
 import { CheckboxIndicator } from "./CheckboxIndicator";
 import { ToggleGroup, ToggleGroupItem } from "./ToggleGroup";
+import { CompactSearchField } from "./SearchField";
 import { t, tf } from "@/src/i18n/ui";
 
 export interface FacetOption {
@@ -57,11 +58,7 @@ export function FacetFilter({ label, icon, options, selectedValues, onChange, se
       <Popover className="popover-surface facet-filter-popover" placement="bottom start" offset={8} UNSTABLE_portalContainer={portalContainer ?? undefined}>
         <Dialog className="facet-filter-dialog" aria-label={tf("筛选{name}", { name: label })}>
           {searchable ? (
-            <SearchField className="facet-filter-search" value={query} onChange={setQuery} aria-label={tf("搜索{name}", { name: label })}>
-              <RiSearchLine size={15} aria-hidden="true" />
-              <Input ref={searchInputRef} placeholder={t(searchPlaceholder)} />
-              {query ? <Button variant="ghost" size="icon" aria-label={tf("清除{name}搜索", { name: label })} onPress={() => setQuery("")}><RiCloseLine size={14} /></Button> : null}
-            </SearchField>
+            <CompactSearchField className="facet-filter-search" value={query} onChange={setQuery} aria-label={tf("搜索{name}", { name: label })} placeholder={t(searchPlaceholder)} clearLabel={tf("清除{name}搜索", { name: label })} inputRef={searchInputRef} iconSize={15} />
           ) : null}
           <div className="facet-filter-options">
             {visibleOptions.map((option) => (

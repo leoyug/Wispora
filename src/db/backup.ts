@@ -1,5 +1,6 @@
 import { z } from "zod";
 import DOMPurify from "dompurify";
+import { normalizeUrl } from "@/src/capture/normalizeUrl";
 import type { CoverData, PersistentTask, SavedItem, SavedView, Snapshot, Tag } from "@/src/domain/inspiration";
 import type { ContentDigest, DigestEntry } from "@/src/domain/digest";
 import { db, type WisporaDatabase } from "./database";
@@ -27,13 +28,17 @@ const backupSchema = z.object({
     canonicalUrl: z.string().url(), originalUrl: z.string().url(),
     title: z.string(), siteHost: z.string(), description: z.string(),
     tagIds: z.array(z.string()), cover: z.object({ background: z.string(), foreground: z.string(), label: z.string(), motif: z.enum(["type", "grid", "orb"]), blob: z.string().optional() }).passthrough(),
-    isFavorite: z.boolean(), snapshotStatus: z.enum(["pending", "complete", "partial", "failed"]),
+    isFavorite: z.boolean(), isRead: z.boolean().optional(), snapshotStatus: z.enum(["pending", "complete", "partial", "failed"]),
     aiStatus: z.enum(["pending", "complete", "failed"]), createdAt: z.number(), updatedAt: z.number(),
     snapshotId: z.string().optional(),
     siteIconAutoBackground: z.literal("dark").optional(),
     siteIconBackgroundOverride: z.enum(["light", "dark"]).optional(),
   }).passthrough()),
-  snapshots: z.array(z.object({ id: z.string().min(1), itemId: z.string().min(1), cleanHtml: z.string(), cleanText: z.string() }).passthrough()),
+  snapshots: z.array(z.object({
+    id: z.string().min(1), itemId: z.string().min(1), cleanHtml: z.string(), cleanText: z.string(),
+    sourceUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value)).optional(),
+    baseUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value)).optional(),
+  }).passthrough()),
   tags: z.array(z.object({ id: z.string().min(1), name: z.string(), normalizedName: z.string().min(1), aliases: z.array(z.string()), usageCount: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),
   savedViews: z.array(z.object({ id: z.string().min(1), name: z.string(), scope: z.enum(["all", "unprocessed", "favorites", "website", "article", "follow"]), tagIds: z.array(z.string()), isSystem: z.boolean(), sortOrder: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),
   tasks: z.array(z.object({ id: z.string().min(1), itemId: z.string().min(1), type: z.enum(["capture", "ai"]), status: z.enum(["pending", "running", "failed", "complete"]), attempts: z.number(), createdAt: z.number(), updatedAt: z.number() }).passthrough()),
@@ -127,12 +132,13 @@ export async function restoreBackup(backup: Backup, database: WisporaDatabase = 
       tagMap.set(tag.id, id);
       if (!existing) { tagsToAdd.push({ ...tag, id, normalizedName, usageCount: 0 }); tagsByName.set(normalizedName, id); }
     }
-    const existingKeys = new Set(existingItems.map((item) => `${item.kind}\0${item.canonicalUrl}`));
+    const itemKey = (item: SavedItem) => `${item.kind}\0${normalizeUrl(item.canonicalUrl)}`;
+    const existingKeys = new Set(existingItems.map(itemKey));
     const itemMap = new Map<string, string>();
     const snapshotMap = new Map(valid.snapshots.map((snapshot) => [snapshot.id, nextId(snapshot.id)]));
     const itemsToAdd: SavedItem[] = [];
     for (const item of items) {
-      const key = `${item.kind}\0${item.canonicalUrl}`;
+      const key = itemKey(item);
       if (existingKeys.has(key)) continue;
       const id = nextId(item.id);
       itemMap.set(item.id, id);

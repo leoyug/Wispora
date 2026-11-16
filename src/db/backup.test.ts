@@ -20,14 +20,15 @@ describe("local backup", () => {
   it.each(["wispora-backup", "wanderland-backup"] as const)("restores %s files into the same library", async (format) => {
     const source = makeDatabase();
     const repository = new InspirationRepository(source);
-    await repository.createSavedItem({ kind: "website", url: "https://example.com/brand", title: "Keep my collection" });
+    const { item } = await repository.createSavedItem({ kind: "article", url: "https://example.com/brand", title: "Keep my collection" });
+    await repository.toggleArticleRead(item.id);
     const exported = await createBackup(source);
     expect(exported.format).toBe("wispora-backup");
     const target = makeDatabase();
     try {
       const outcome = await restoreBackup(parseBackup({ ...exported, format }), target);
       expect(outcome.added).toBe(1);
-      expect((await target.savedItems.toArray())[0]?.title).toBe("Keep my collection");
+      expect((await target.savedItems.toArray())[0]).toMatchObject({ title: "Keep my collection", isRead: true });
     } finally {
       source.close(); target.close();
     }
@@ -81,6 +82,18 @@ describe("local backup", () => {
     backup.savedItems[0]!.tagIds = ["missing-tag"];
     expect(() => parseBackup(backup)).toThrow("关联数据无效");
     expect(await target.savedItems.count()).toBe(0);
+    source.close(); target.close();
+  });
+
+  it.each([true, false])("skips equivalent Sprrrint homepages when source is legacy: %s", async (sourceIsLegacy) => {
+    const source = makeDatabase();
+    const target = makeDatabase();
+    const imported = await new InspirationRepository(source).createSavedItem({ kind: "website", url: "https://sprrrint.com/" });
+    const existing = await new InspirationRepository(target).createSavedItem({ kind: "website", url: "https://sprrrint.com/", title: "Keep existing" });
+    const [legacy, id] = sourceIsLegacy ? [source, imported.item.id] : [target, existing.item.id];
+    await legacy.savedItems.update(id, { canonicalUrl: "https://sprrrint.com/?limit=48" });
+    expect(await restoreBackup(parseBackup(await createBackup(source)), target)).toMatchObject({ added: 0, skipped: 1 });
+    expect(await target.savedItems.toArray()).toMatchObject([{ id: existing.item.id, title: "Keep existing" }]);
     source.close(); target.close();
   });
 });

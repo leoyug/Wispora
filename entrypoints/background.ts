@@ -1,6 +1,9 @@
 import { normalizeUrl } from "@/src/capture/normalizeUrl";
-import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage, saveAiSettings } from "@/src/ai/config";
+import { endpointPermissionPattern, getAiSettings, getAiTestCredentials, hardenAiCredentialStorage } from "@/src/ai/config";
+import { drainUnusedHostPermissions, hostPermissionPort, saveAiSettingsWithPermission, withHostPermissionUse } from "@/src/ai/hostPermissions";
 import { isTrustedAiMessageSender } from "@/src/ai/messageSecurity";
+import { loadConfiguredModels } from "@/src/ai/modelCatalog";
+import { aiRequestOptions } from "@/src/ai/presets";
 import { OpenAiCompatibleProvider } from "@/src/ai/openAiCompatibleProvider";
 import { processAiQueue } from "@/src/ai/runner";
 import { readRemoteMetadata } from "@/src/capture/readRemoteMetadata";
@@ -114,7 +117,7 @@ async function retryCurrentPage(request: Extract<ExtensionRequest, { type: "capt
     if (!item) throw new Error("收藏项不存在。");
     const capture = await readTab(tab.id!);
     const currentCandidates = [tab.url!, capture.url, capture.canonicalUrl].filter(Boolean).map((url) => normalizeUrl(url!));
-    if (!currentCandidates.includes(item.canonicalUrl)) {
+    if (!currentCandidates.includes(normalizeUrl(item.canonicalUrl))) {
       throw new Error("请先打开该收藏项的来源页面，再重试采集。");
     }
     await inspirationRepository.markCaptureStarted(item.id);
@@ -129,7 +132,6 @@ async function retryCurrentPage(request: Extract<ExtensionRequest, { type: "capt
 
 async function captureRemotePage(
   request: Extract<ExtensionRequest, { type: "capture:remote" }>,
-  revokePermission = true,
   captureMethod: "manual-url" | "import" = "manual-url",
 ): Promise<CaptureResponse> {
   let started = false;
@@ -138,10 +140,12 @@ async function captureRemotePage(
     if (request.permissionPattern !== expectedPermission) throw new Error("补全权限范围与目标网站不一致。");
     if (!await browser.permissions.contains({ origins: [expectedPermission] })) throw new Error("未获得该网站的临时访问权限。");
     const item = await inspirationRepository.getSavedItem(request.itemId);
-    if (!item || normalizeUrl(request.url) !== item.canonicalUrl) throw new Error("收藏项与补全网址不一致。");
+    if (!item || normalizeUrl(request.url) !== normalizeUrl(item.canonicalUrl)) throw new Error("收藏项与补全网址不一致。");
 
-    await inspirationRepository.markCaptureStarted(item.id, captureMethod);
-    started = true;
+    if (!request.refreshArticleCover) {
+      await inspirationRepository.markCaptureStarted(item.id, captureMethod);
+      started = true;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
     let capture: PageCapture;
@@ -154,28 +158,27 @@ async function captureRemotePage(
     } finally {
       clearTimeout(timeout);
     }
+    if (request.refreshArticleCover) {
+      const coverUpdated = capture.articleCover
+        ? await inspirationRepository.refreshArticleCover(item.id, item.canonicalUrl, capture.articleCover)
+        : false;
+      return { ok: true, created: false, itemId: item.id, title: item.title, completeness: item.snapshotStatus === "pending" ? "partial" : item.snapshotStatus, coverUpdated };
+    }
     const completed = await completeCaptureWithIconAnalysis(item.id, capture, captureMethod);
     void processAiQueue();
     return { ok: true, created: false, itemId: completed.itemId, title: capture.title, completeness: capture.completeness };
   } catch (error) {
     if (started) await inspirationRepository.failCapture(request.itemId, readableError(error));
     return { ok: false, itemId: request.itemId, error: readableError(error) };
-  } finally {
-    if (revokePermission) await browser.permissions.remove({ origins: [expectedPermission] }).catch(() => false);
   }
 }
 
 async function captureRemoteBatch(request: Extract<ExtensionRequest, { type: "capture:remote-batch" }>) {
-  const permissions = [...new Set(request.items.map((item) => item.permissionPattern))];
-  try {
-    const results: CaptureResponse[] = [];
-    for (const item of request.items) {
-      results.push(await captureRemotePage({ type: "capture:remote", ...item }, false, "import"));
-    }
-    return results;
-  } finally {
-    if (permissions.length) await browser.permissions.remove({ origins: permissions }).catch(() => false);
+  const results: CaptureResponse[] = [];
+  for (const item of request.items) {
+    results.push(await captureRemotePage({ type: "capture:remote", ...item }, "import"));
   }
+  return results;
 }
 
 export default defineBackground(() => {
@@ -186,9 +189,19 @@ export default defineBackground(() => {
     inspirationRepository.recoverInterruptedAiTasks(),
   ]).then(() => processAiQueue()).catch((error) => console.error("Wispora 初始化失败", error));
 
+  const cleanHostPermissions = () => { void drainUnusedHostPermissions().catch(() => undefined); };
+  const runHostOperation = <T>(operation: () => Promise<T>) => withHostPermissionUse(operation).finally(cleanHostPermissions);
+  browser.runtime.onStartup.addListener(cleanHostPermissions);
+  browser.runtime.onInstalled.addListener(cleanHostPermissions);
+  browser.permissions.onAdded.addListener(cleanHostPermissions);
+
   const captureLanguagePorts = new Set<Browser.runtime.Port>();
   let languageRevision = 0;
   browser.runtime.onConnect.addListener((port) => {
+    if (port.name === hostPermissionPort && port.sender && isTrustedAiMessageSender(port.sender, browser.runtime.id, browser.runtime.getURL("/dashboard.html"))) {
+      port.onDisconnect.addListener(cleanHostPermissions);
+      return;
+    }
     if (port.name !== "capture-language" || port.sender?.id !== browser.runtime.id || !port.sender.tab?.id) return;
     captureLanguagePorts.add(port);
     port.onDisconnect.addListener(() => captureLanguagePorts.delete(port));
@@ -231,34 +244,30 @@ export default defineBackground(() => {
     if (request.type === "tags:list") return inspirationRepository.listTags();
     if (request.type === "capture:current") return addCurrentPage(request, sender.tab);
     if (request.type === "capture:retry") return retryCurrentPage(request, sender.tab);
-    if (request.type === "capture:remote") return captureRemotePage(request);
-    if (request.type === "capture:remote-batch") return captureRemoteBatch(request);
+    if (request.type === "capture:remote") return runHostOperation(() => captureRemotePage(request));
+    if (request.type === "capture:remote-batch") return runHostOperation(() => captureRemoteBatch(request));
     if (request.type === "ai:config:get") return getAiSettings();
     if (request.type === "ai:config:save") {
-      return (async () => {
-        const previous = await getAiSettings();
-        const settings = await saveAiSettings(request.settings);
-        try {
-          const previousPermission = endpointPermissionPattern(previous.endpoint);
-          const nextPermission = endpointPermissionPattern(settings.endpoint);
-          if (!settings.enabled || previousPermission !== nextPermission) {
-            await browser.permissions.remove({ origins: [previousPermission] });
-          }
-        } catch {
-          // Legacy insecure endpoints are intentionally not retained or requested.
-        }
+      return runHostOperation(() => saveAiSettingsWithPermission(request.settings)).then((settings) => {
         if (settings.enabled) void processAiQueue();
         return settings;
-      })();
+      });
     }
+    if (request.type === "ai:models:list") return runHostOperation(() => loadConfiguredModels(request.settings));
     if (request.type === "ai:config:test") {
-      return getAiTestCredentials(request.settings).then(({ settings, apiKey }) => new OpenAiCompatibleProvider({
-        endpoint: settings.endpoint,
-        model: settings.model,
-        apiKey,
-        timeoutMs: 15_000,
-        extraBody: settings.provider === "deepseek" ? { thinking: { type: "disabled" } } : undefined,
-      }).testConnection()).then(() => ({ ok: true as const }));
+      const origin = endpointPermissionPattern(request.settings.endpoint);
+      return runHostOperation(async () => {
+        if (!(await browser.permissions.contains({ origins: [origin] }))) throw new Error("需要允许访问当前 Provider 域名，才能测试连接。");
+        const { settings, apiKey } = await getAiTestCredentials(request.settings);
+        await new OpenAiCompatibleProvider({
+          endpoint: settings.endpoint,
+          model: settings.model,
+          apiKey,
+          timeoutMs: 15_000,
+          ...aiRequestOptions(settings),
+        }).testConnection();
+        return { ok: true as const };
+      });
     }
     if (request.type === "ai:process") return processAiQueue().then(() => inspirationRepository.getAiTaskSummary());
     if (request.type === "ai:retry") {

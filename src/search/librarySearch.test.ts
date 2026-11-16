@@ -17,6 +17,20 @@ describe("searchLibrary", () => {
   it("supports English prefixes", () => expect([...searchLibrary(items, "anim")]).toEqual(["two"]));
 });
 
+it("filters read articles only when the Read Later constraint applies", () => {
+  const items: LibraryItem[] = [
+    { ...base, id: "legacy" },
+    { ...base, id: "unread", isRead: false },
+    { ...base, id: "read", isRead: true },
+    { ...base, id: "archived", archivedAt: 2 },
+    { ...base, id: "website", kind: "website" },
+  ];
+  const index = createLibrarySearchIndex(items);
+  const options = { query: "Grid", scope: "article", sort: "newest" } as const;
+  expect(queryLibraryItems(items, index, { ...options, unreadArticlesOnly: true }).map((item) => item.id)).toEqual(["legacy", "unread"]);
+  expect(queryLibraryItems(items, index, options).map((item) => item.id)).toEqual(["legacy", "read", "unread"]);
+});
+
 describe("phase two search semantics", () => {
   const items: LibraryItem[] = [
     { ...base, id: "exact", title: "Motion", siteHost: "motion.dev", description: "spring guide", tagIds: ["design", "animation"], tags: ["Design", "Animation"] },
